@@ -1,0 +1,23 @@
+# Build and local state
+.gradle/
+**/build/
+build-tests/
+local.properties
+.idea/
+*.iml
+.harness/
+# Signing and credentials
+*.keystore
+*.jks
+.env
+.env.*
+keystore.properties
+# Generated packages and debugging captures
+*.apk
+*.aab
+*.apks
+*.idsig
+*.log
+screenshots/
+__pycache__/
+.DS_Store
