@@ -57,7 +57,7 @@ public class CameraActivity extends Activity {
 
  @Override public void onCreate(Bundle state){
   super.onCreate(state);manager=(CameraManager)getSystemService(CAMERA_SERVICE);
-  LinearLayout root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(surface());
+  LinearLayout root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(surface());
   getWindow().setStatusBarColor(surface());getWindow().setNavigationBarColor(surface());
   FrameLayout viewfinder=new FrameLayout(this);preview=new TextureView(this);viewfinder.addView(preview,new FrameLayout.LayoutParams(-1,-1));viewfinder.setBackground(rounded(Color.BLACK,28));viewfinder.setClipToOutline(true);LinearLayout.LayoutParams finderLayout=new LinearLayout.LayoutParams(-1,0,1);finderLayout.setMargins(dp(12),0,dp(12),dp(12));root.addView(viewfinder,finderLayout);
   focusRing=new View(this);android.graphics.drawable.GradientDrawable ring=new android.graphics.drawable.GradientDrawable();ring.setShape(android.graphics.drawable.GradientDrawable.OVAL);ring.setColor(Color.TRANSPARENT);ring.setStroke(dp(2),accent());focusRing.setBackground(ring);focusRing.setVisibility(View.INVISIBLE);viewfinder.addView(focusRing,new FrameLayout.LayoutParams(dp(64),dp(64)));

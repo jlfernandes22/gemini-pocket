@@ -55,7 +55,7 @@ public class MainActivity extends Activity {
  private TextView text(String s,int size){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(dark()?Color.rgb(232,234,243):Color.rgb(25,31,50));t.setPadding(pad(20),pad(12),pad(20),pad(12));return t;}
  private void action(LinearLayout parent,String title,Runnable r){Button b=new Button(this);b.setText(title);b.setAllCaps(false);b.setTextSize(15);b.setMinHeight(pad(48));boolean primary="Apply".equals(title);b.setTextColor(primary?(dark()?0xFF102047:Color.WHITE):(dark()?0xFFD7E2FF:0xFF304D8C));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(primary?(dark()?0xFFB8CBFF:0xFF3459CF):(dark()?0xFF2B303A:0xFFE3EAF7));bg.setCornerRadius(pad(24));b.setBackground(bg);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,pad(48));lp.setMargins(pad(8),pad(5),pad(8),pad(5));parent.addView(b,lp);b.setOnClickListener(v->r.run());}
  private void setup(){
-  base();ScrollView scroll=new ScrollView(this);LinearLayout content=new LinearLayout(this);content.setPadding(pad(12),pad(24),pad(12),pad(24));content.setOrientation(1);scroll.addView(content);root.addView(scroll);
+  base();ScrollView scroll=new ScrollView(this);LinearLayout content=new LinearLayout(this);content.setPadding(pad(12),pad(24),pad(12),pad(24));content.setOrientation(LinearLayout.VERTICAL);scroll.addView(content);root.addView(scroll);
   content.addView(text("Gemini Pocket",30));content.addView(text("Choose how you connect",20));
   content.addView(text("Browser session\nUse an existing Gemini login in a supported browser. Your cookies and passwords stay in that browser. The browser controls permissions, uploads and navigation; this app cannot restrict its URLs.",16));
   action(content,"Choose browser & continue",()->chooseBrowser());
@@ -100,7 +100,7 @@ public class MainActivity extends Activity {
  }
  private void confirmModeSelection(){previousScreen=null;previousRoot=null;destroyWeb();}
  private void settings(){
-  final Dialog sheet=new Dialog(this,R.style.BrowsingSheetTheme);LinearLayout c=new LinearLayout(this);c.setOrientation(1);c.setPadding(pad(16),pad(12),pad(16),pad(24));
+  final Dialog sheet=new Dialog(this,R.style.BrowsingSheetTheme);LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(16),pad(12),pad(16),pad(24));
   android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?Color.rgb(30,31,33):Color.rgb(242,245,252));bg.setCornerRadii(new float[]{pad(28),pad(28),pad(28),pad(28),0,0,0,0});c.setBackground(bg);
   c.addView(text("Browsing controls",22));c.addView(text("Gemini Pocket settings · not Google account settings",12));
   RadioGroup choices=new RadioGroup(this);RadioButton locked=new RadioButton(this);locked.setId(View.generateViewId());locked.setText("Restricted browsing\nOnly required Gemini & Google services");locked.setMinHeight(pad(64));choices.addView(locked);
@@ -126,7 +126,7 @@ public class MainActivity extends Activity {
  }
  private void privacyControls(){
   final Dialog sheet=new Dialog(this,R.style.BrowsingSheetTheme);
-  LinearLayout c=new LinearLayout(this);c.setOrientation(1);c.setPadding(pad(16),pad(12),pad(16),pad(24));
+  LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(16),pad(12),pad(16),pad(24));
   c.addView(text("Privacy & storage",22));c.addView(text("Manage this app’s local data",14));
   String[] titles={"Temporary attachments","Website cache","Reset website session"};
   String[] details={"Remove camera and upload copies. Gallery originals stay safe.","Free downloaded resources without signing out.","Sign out of isolated mode and erase its website data."};
@@ -152,7 +152,7 @@ public class MainActivity extends Activity {
   FrameLayout stage=new FrameLayout(this);root.addView(stage,new LinearLayout.LayoutParams(-1,0,1));
   web=new WebView(this);web.setBackgroundColor(dark()?Color.BLACK:Color.WHITE);stage.addView(web,new FrameLayout.LayoutParams(-1,-1));
   pageVisible=false;
-  launchCover=new LinearLayout(this);launchCover.setOrientation(1);launchCover.setGravity(Gravity.CENTER);launchCover.setBackgroundColor(dark()?Color.BLACK:Color.WHITE);
+  launchCover=new LinearLayout(this);launchCover.setOrientation(LinearLayout.VERTICAL);launchCover.setGravity(Gravity.CENTER);launchCover.setBackgroundColor(dark()?Color.BLACK:Color.WHITE);
   ExpressiveLoader loader=new ExpressiveLoader(this);launchCover.addView(loader,new LinearLayout.LayoutParams(pad(96),pad(96)));
   loadingStage=text("Connecting to Gemini",18);loadingStage.setGravity(Gravity.CENTER);loadingStage.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);launchCover.addView(loadingStage);
   WavyLoadingBar wave=new WavyLoadingBar(this);LinearLayout.LayoutParams waveSize=new LinearLayout.LayoutParams(pad(180),pad(24));waveSize.setMargins(0,pad(6),0,pad(8));launchCover.addView(wave,waveSize);
@@ -261,7 +261,7 @@ public class MainActivity extends Activity {
   boolean remembered=true;
   for(String resource:r.getResources()){String key=consentKey(resource);if(key==null){r.deny();pendingPermission=null;return;}String choice=prefs.getString(key,"");if("deny".equals(choice)){denyPermission(r);return;}if(!"allow".equals(choice))remembered=false;}
   if(remembered){requestDevicePermissions(r);return;}
-  final Dialog consent=new Dialog(this,R.style.BrowsingSheetTheme);LinearLayout content=new LinearLayout(this);content.setOrientation(1);content.setPadding(pad(20),pad(16),pad(20),pad(28));
+  final Dialog consent=new Dialog(this,R.style.BrowsingSheetTheme);LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(pad(20),pad(16),pad(20),pad(28));
   ArrayList<String> devices=new ArrayList<>();for(String resource:r.getResources()){if(PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource))devices.add("microphone");if(PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource))devices.add("camera");}
   if(devices.isEmpty()){denyPermission(r);return;}
   content.addView(text("Gemini device access",22));content.addView(text("Allow gemini.google.com to use your "+android.text.TextUtils.join(" and ",devices)+"?",16));content.addView(text("Only the requested devices are allowed. Android will ask for any missing permissions. Your choice is saved for Gemini on this phone. Reset website device permissions in Browsing controls to ask again. Android permissions still apply.",13));
