@@ -1,5 +1,7 @@
+import java.util.Properties
+
 plugins { id("com.android.application") }
-val appVersion = java.util.Properties().apply { rootProject.file("version.properties").inputStream().use { load(it) } }
+val appVersion = Properties().apply { rootProject.file("version.properties").inputStream().use { load(it) } }
 android {
     namespace = "com.geminipocket"
     compileSdk = 35
