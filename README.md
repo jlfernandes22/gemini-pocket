@@ -93,6 +93,12 @@ docs/                              Architecture, security and release notes
 - Private attachment copies can remain briefly for WebView access; see [Privacy](PRIVACY.md).
 - This project has not completed an independent security audit. See [Security](SECURITY.md).
 
+## Why Gemini Pocket exists
+
+This project began with a practical problem: after debloating their phone and uninstalling the Google app, the creator found that the official Gemini experience stopped working on their device. Gemini Pocket was built to access Gemini through its website without reinstalling the Google app, while shaping the experience around a lightweight wrapper and better native integration.
+
+That describes the creator's experience, not a guarantee for every debloated device. Gemini Pocket still depends on Google's Gemini web service, an available Android System WebView (or a supported browser in browser mode), connectivity, and any account requirements imposed by Google. It does not make Gemini an offline or Google-service-free assistant.
+
 ## Inspiration & acknowledgements
 
 Gemini Pocket was inspired by **[geminiAssist](https://github.com/AcideFluorhydrique/geminiAssist)** by **AcideFluorhydrique**, a lightweight WebView wrapper for Google Gemini with optional blocking of non-essential URLs. Trying that app motivated this project's creator to build their own take on the idea and explore improvements to camera integration, attachments, native controls, theming, and the overall experience.
