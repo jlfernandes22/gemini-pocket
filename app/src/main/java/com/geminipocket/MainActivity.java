@@ -54,26 +54,29 @@ public class MainActivity extends Activity {
  }
  private TextView text(String s,int size){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(dark()?Color.rgb(232,234,243):Color.rgb(25,31,50));t.setPadding(pad(20),pad(12),pad(20),pad(12));return t;}
  private void action(LinearLayout parent,String title,Runnable r){Button b=new Button(this);b.setText(title);b.setAllCaps(false);b.setTextSize(15);b.setMinHeight(pad(48));boolean primary="Apply".equals(title);b.setTextColor(primary?(dark()?0xFF102047:Color.WHITE):(dark()?0xFFD7E2FF:0xFF304D8C));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(primary?(dark()?0xFFB8CBFF:0xFF3459CF):(dark()?0xFF2B303A:0xFFE3EAF7));bg.setCornerRadius(pad(24));b.setBackground(bg);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,pad(48));lp.setMargins(pad(8),pad(5),pad(8),pad(5));parent.addView(b,lp);b.setOnClickListener(v->r.run());}
+ private LinearLayout surfaceCard(LinearLayout parent){LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(12),pad(12),pad(12),pad(16));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?0xFF1E222B:0xFFEEF2FA);bg.setCornerRadius(pad(28));c.setBackground(bg);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(pad(8),pad(10),pad(8),pad(10));parent.addView(c,lp);return c;}
  private void setup(){
-  base();ScrollView scroll=new ScrollView(this);LinearLayout content=new LinearLayout(this);content.setPadding(pad(12),pad(24),pad(12),pad(24));content.setOrientation(LinearLayout.VERTICAL);scroll.addView(content);root.addView(scroll);
-  content.addView(text("Gemini Pocket",30));content.addView(text("Choose how you connect",20));
-  content.addView(text("Browser session\nUse an existing Gemini login in a supported browser. Your cookies and passwords stay in that browser. The browser controls permissions, uploads and navigation; this app cannot restrict its URLs.",16));
-  action(content,"Choose browser & continue",()->chooseBrowser());
-  content.addView(text("Isolated app\nSeparate sign-in, modern photo picker and camera support. Required Google URLs only by default. Google may decline sign-in inside embedded browsers; browser mode is the reliable alternative.",16));
-  action(content,"Use isolated app",()->{if(web!=null && returnFromModeSelection())return;confirmModeSelection();prefs.edit().putString("mode","isolated").apply();isolated();});
-  content.addView(text("Switch modes in Settings anytime. Switching apps keeps your page where possible, but Android or the website can stop background work. Not affiliated with Google.",14));
+  base();ScrollView scroll=new ScrollView(this);LinearLayout content=new LinearLayout(this);content.setPadding(pad(12),pad(32),pad(12),pad(24));content.setOrientation(LinearLayout.VERTICAL);scroll.addView(content);root.addView(scroll);
+  content.addView(text("Gemini Pocket",30));content.addView(text("Your Gemini. Your connection.",20));content.addView(text("Choose a private app session or continue with a browser you already use. You can change this later.",15));
+  LinearLayout isolatedCard=surfaceCard(content);isolatedCard.addView(text("Isolated app",22));isolatedCard.addView(text("A focused space for Gemini",14));isolatedCard.addView(text("Separate sign-in, native camera and photo picker, with required URLs only by default.",15));action(isolatedCard,"Continue in app",()->{if(web!=null && returnFromModeSelection())return;confirmModeSelection();prefs.edit().putString("mode","isolated").apply();isolated();});
+  LinearLayout browserCard=surfaceCard(content);browserCard.addView(text("Browser session",22));browserCard.addView(text("Keep your existing browser login",14));browserCard.addView(text("Cookies and passwords stay with your browser. Its navigation, permissions and upload controls apply.",15));action(browserCard,"Choose a browser",()->chooseBrowser());
+  content.addView(text("Google may limit embedded sign-in. Browser mode is an alternative. Android can stop background work in either mode. Not affiliated with Google.",12));
+ }
+ private Dialog themedSheet(String title,String subtitle,java.util.function.BiConsumer<LinearLayout,Dialog> contents){
+  Dialog sheet=new Dialog(this,R.style.BrowsingSheetTheme);LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(16),pad(16),pad(16),pad(24));c.addView(text(title,24));if(subtitle!=null)c.addView(text(subtitle,14));contents.accept(c,sheet);
+  ScrollView scroll=new ScrollView(this);scroll.addView(c);android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?0xFF1E1F21:0xFFF2F5FC);bg.setCornerRadii(new float[]{pad(28),pad(28),pad(28),pad(28),0,0,0,0});scroll.setBackground(bg);FrameLayout host=new FrameLayout(this);host.setOnClickListener(v->sheet.dismiss());scroll.setOnClickListener(v->{});host.addView(scroll,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));sheet.setContentView(host);Window w=sheet.getWindow();w.setBackgroundDrawableResource(android.R.color.transparent);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);w.setDimAmount(.4f);sheet.show();w.setLayout(-1,-1);w.setNavigationBarColor(dark()?0xFF1E1F21:0xFFF2F5FC);if(Build.VERSION.SDK_INT>=30){w.setDecorFitsSystemWindows(false);w.setNavigationBarContrastEnforced(false);}host.setOnApplyWindowInsetsListener((v,i)->{int bottom=Build.VERSION.SDK_INT>=30?i.getInsets(WindowInsets.Type.navigationBars()).bottom:i.getSystemWindowInsetBottom();c.setPadding(pad(16),pad(16),pad(16),pad(24)+bottom);return Build.VERSION.SDK_INT>=30?WindowInsets.CONSUMED:i.consumeSystemWindowInsets();});host.requestApplyInsets();return sheet;
  }
  private void chooseBrowser(){
-  Intent service=new Intent("android.support.customtabs.action.CustomTabsService");
-  List<ResolveInfo> found=getPackageManager().queryIntentServices(service,0);
-  ArrayList<String> packages=new ArrayList<>(),labels=new ArrayList<>();
-  for(ResolveInfo ri:found){String p=ri.serviceInfo.packageName;if(!packages.contains(p)){packages.add(p);labels.add(ri.loadLabel(getPackageManager()).toString()+"\n"+p);}}
-  if(packages.isEmpty()){new AlertDialog.Builder(this).setTitle("No supported browser found").setMessage("Install or enable a browser supporting Custom Tabs, such as Chrome or Firefox, then try again. You can also use isolated mode.").setPositiveButton("OK",null).show();return;}
-  new AlertDialog.Builder(this).setTitle("Choose browser").setItems(labels.toArray(new String[0]),(d,i)->{
-   new AlertDialog.Builder(this).setTitle("Continue with "+labels.get(i).split("\n")[0]+"?").setMessage("Gemini will use this browser's existing cookies and sign-in. Gemini Pocket does not read or import your account credentials. Browser permissions and navigation rules apply, not the isolated-mode URL restriction.").setNegativeButton("Cancel",null).setPositiveButton("Allow & open",(x,y)->{
-    confirmModeSelection();prefs.edit().putString("mode","browser").putString("browser",packages.get(i)).apply();browserHome();openBrowser();
-   }).show();
-  }).setNegativeButton("Cancel",null).show();
+  Intent service=new Intent("android.support.customtabs.action.CustomTabsService");List<ResolveInfo> found=getPackageManager().queryIntentServices(service,0);ArrayList<String> packages=new ArrayList<>(),labels=new ArrayList<>();
+  for(ResolveInfo ri:found){String p=ri.serviceInfo.packageName;if(!packages.contains(p)){packages.add(p);labels.add(ri.loadLabel(getPackageManager()).toString());}}
+  themedSheet("Choose your browser","Your login stays in the browser you choose.",(content,sheet)->{
+   if(packages.isEmpty())content.addView(text("No compatible browser found. Install or enable a browser supporting Custom Tabs, such as Firefox or Chrome.",15));
+   for(int i=0;i<packages.size();i++){final int index=i;action(content,labels.get(i),()->{sheet.dismiss();themedSheet("Continue with "+labels.get(index),"Browser session",(consent,dialog)->{
+    consent.addView(text("Gemini will use this browser’s existing sign-in. Gemini Pocket does not read or import your passwords or cookies.",16));consent.addView(text("The browser manages camera, uploads and navigation. Isolated-mode URL restrictions do not apply here.",14));
+    action(consent,"Continue",()->{dialog.dismiss();confirmModeSelection();prefs.edit().putString("mode","browser").putString("browser",packages.get(index)).apply();browserHome();openBrowser();});action(consent,"Back",()->{dialog.dismiss();chooseBrowser();});
+   });});}
+   action(content,"Cancel",()->sheet.dismiss());
+  });
  }
  private void browserHome(){
   base();root.addView(text("Gemini Pocket",28));root.addView(text("Browser session",20));
@@ -85,6 +88,9 @@ public class MainActivity extends Activity {
   Intent i=new Intent(Intent.ACTION_VIEW,Uri.parse(HOME));i.setPackage(pkg);
   Bundle b=new Bundle();b.putBinder("android.support.customtabs.extra.SESSION",null);i.putExtras(b);
   i.putExtra("android.support.customtabs.extra.TITLE_VISIBILITY",1);
+  i.putExtra("android.support.customtabs.extra.TOOLBAR_COLOR",dark()?0xFF121318:0xFFF2F5FC);
+  i.putExtra("androidx.browser.customtabs.extra.COLOR_SCHEME",0);
+  i.putExtra("androidx.browser.customtabs.extra.NAVIGATION_BAR_COLOR",dark()?0xFF121318:0xFFF2F5FC);
   try{startActivity(i);}catch(ActivityNotFoundException e){toast("Browser unavailable. Choose another browser.");chooseBrowser();}
  }
  private ImageButton shield;
