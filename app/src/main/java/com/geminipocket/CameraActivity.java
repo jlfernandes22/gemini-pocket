@@ -18,6 +18,9 @@ import java.util.*;
 /** Private in-app camera. No external camera intent or full-library permission. */
 public class CameraActivity extends Activity {
  private TextureView preview;
+ private FrameLayout reviewHost;
+ private PhotoReviewView reviewView;
+ private boolean reviewVisible;
  private CameraDevice camera;
  private CameraCaptureSession session;
  private ImageReader reader;
@@ -69,12 +72,13 @@ public class CameraActivity extends Activity {
   LinearLayout controls=new LinearLayout(this);controls.setGravity(Gravity.CENTER_VERTICAL);controls.setPadding(20,12,20,28);
   Button cancel=new Button(this);cancel.setText("Close");style(cancel,false);controls.addView(cancel,new LinearLayout.LayoutParams(0,dp(56),1));cancel.setOnClickListener(v->finish());
   shutter=new Button(this);shutter.setText("");shutter.setContentDescription("Take photo");shutter.setTextSize(36);style(shutter,true);android.graphics.drawable.GradientDrawable outer=rounded(accent(),48);android.graphics.drawable.GradientDrawable inner=rounded(night()?0xFF172344:Color.WHITE,48);android.graphics.drawable.LayerDrawable shutterLayers=new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{outer,inner});shutterLayers.setLayerInset(1,dp(7),dp(7),dp(7),dp(7));shutter.setBackground(shutterLayers);LinearLayout.LayoutParams shot=new LinearLayout.LayoutParams(dp(80),dp(80));shot.setMargins(dp(16),0,dp(16),0);controls.addView(shutter,shot);shutter.setOnClickListener(v->take());
-  ImageButton lens=new ImageButton(this);lens.setImageResource(com.geminipocket.R.drawable.ic_camera_flip);lens.setContentDescription("Switch front or back camera");lens.setColorFilter(ink());android.graphics.drawable.GradientDrawable flipBg=new android.graphics.drawable.GradientDrawable();flipBg.setColor(night()?0xFF293347:0xFFE0E8F8);flipBg.setCornerRadius(dp(40));lens.setBackground(flipBg);controls.addView(lens,new LinearLayout.LayoutParams(0,dp(56),1));lens.setOnClickListener(v->switchFacing());root.addView(controls);setContentView(root);
+  ImageButton lens=new ImageButton(this);lens.setImageResource(com.geminipocket.R.drawable.ic_camera_flip);lens.setContentDescription("Switch front or back camera");lens.setColorFilter(ink());android.graphics.drawable.GradientDrawable flipBg=new android.graphics.drawable.GradientDrawable();flipBg.setColor(night()?0xFF293347:0xFFE0E8F8);flipBg.setCornerRadius(dp(40));lens.setBackground(flipBg);controls.addView(lens,new LinearLayout.LayoutParams(0,dp(56),1));lens.setOnClickListener(v->switchFacing());root.addView(controls);reviewHost=new FrameLayout(this);reviewHost.addView(root,new FrameLayout.LayoutParams(-1,-1));setContentView(reviewHost);
   root.setOnApplyWindowInsetsListener((v,i)->{v.setPadding(i.getSystemWindowInsetLeft(),i.getSystemWindowInsetTop(),i.getSystemWindowInsetRight(),i.getSystemWindowInsetBottom());return i.consumeSystemWindowInsets();});
   try{ids=manager.getCameraIdList();for(int i=0;i<ids.length;i++)if(Integer.valueOf(CameraCharacteristics.LENS_FACING_BACK).equals(characteristics(i).get(CameraCharacteristics.LENS_FACING))){selected=i;break;}}catch(Exception e){fail("Cannot list cameras");}
+  if(state!=null){String saved=state.getString("reviewFile");if(saved!=null && UploadPolicy.validName(saved)){File f=new File(getCacheDir(),saved);if(f.isFile()){output=f;taking=true;reviewVisible=true;shutter.setEnabled(false);reviewHost.post(()->review(false));}}}
   preview.setSurfaceTextureListener(new TextureView.SurfaceTextureListener(){public void onSurfaceTextureAvailable(SurfaceTexture t,int w,int h){open();}public void onSurfaceTextureSizeChanged(SurfaceTexture t,int w,int h){transformPreview();}public boolean onSurfaceTextureDestroyed(SurfaceTexture t){close();return true;}public void onSurfaceTextureUpdated(SurfaceTexture t){}});
  }
- @Override protected void onResume(){super.onResume();active=true;worker=new HandlerThread("CameraPreview");worker.start();handler=new Handler(worker.getLooper());if(preview.isAvailable())open();}
+ @Override protected void onResume(){super.onResume();active=true;worker=new HandlerThread("CameraPreview");worker.start();handler=new Handler(worker.getLooper());if(preview.isAvailable() && !reviewVisible)open();}
  @Override protected void onPause(){zoomHandler.removeCallbacksAndMessages(null);zoomQueued=false;active=false;close();if(worker!=null){worker.quitSafely();worker=null;}super.onPause();}
  private int dp(int n){return (int)(n*getResources().getDisplayMetrics().density);}
  private void style(Button b,boolean primary){b.setAllCaps(false);b.setTextSize(15);b.setTextColor(primary?(night()?0xFF142347:Color.WHITE):ink());android.graphics.drawable.GradientDrawable bg=rounded(primary?accent():(night()?0xFF293347:0xFFE0E8F8),28);b.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33666666),bg,null));}
@@ -116,11 +120,12 @@ public class CameraActivity extends Activity {
  private void transformPreview(){if(previewSize==null||preview.getWidth()==0)return;try{
   int rotation=getWindowManager().getDefaultDisplay().getRotation();float w=preview.getWidth(),h=preview.getHeight();int sensor=characteristics(selected).get(CameraCharacteristics.SENSOR_ORIENTATION);boolean swap=((sensor-rotation*90+360)%180)!=0;float bw=swap?previewSize.getHeight():previewSize.getWidth(),bh=swap?previewSize.getWidth():previewSize.getHeight();float scale=Math.max(w/bw,h/bh);Matrix matrix=new Matrix();matrix.setScale(bw*scale/w,bh*scale/h,w/2,h/2);if(rotation==1||rotation==3)matrix.postRotate(rotation==1?-90:90,w/2,h/2);if(front(selected))matrix.postScale(-1,1,w/2,h/2);preview.setTransform(matrix);
  }catch(Exception ignored){}}
- @Override protected void onDestroy(){if(!delivered && output!=null)output.delete();super.onDestroy();}
+ @Override protected void onDestroy(){if(reviewView!=null){reviewView.dispose();reviewView=null;}if(!delivered && output!=null && !isChangingConfigurations())output.delete();super.onDestroy();}
  private void applyZoom(CaptureRequest.Builder b)throws Exception{
   if(Build.VERSION.SDK_INT>=30){android.util.Range<Float> r=characteristics(selected).get(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE);if(r!=null)b.set(CaptureRequest.CONTROL_ZOOM_RATIO,Math.max(r.getLower(),Math.min(r.getUpper(),zoom)));}else{CameraCharacteristics c=characteristics(selected);Rect area=c.get(CameraCharacteristics.SENSOR_INFO_ACTIVE_ARRAY_SIZE);if(area!=null){int dx=(int)(area.width()*(1-1/zoom)/2),dy=(int)(area.height()*(1-1/zoom)/2);b.set(CaptureRequest.SCALER_CROP_REGION,new Rect(area.left+dx,area.top+dy,area.right-dx,area.bottom-dy));}}
  }
  @SuppressWarnings("MissingPermission") private void open(){
+  if(reviewVisible)return;
   if(!active || opening || camera!=null || ids==null || ids.length==0 || !preview.isAvailable())return;
   opening=true;final int token=++generation;try{manager.openCamera(ids[selected],new CameraDevice.StateCallback(){public void onOpened(CameraDevice c){opening=false;if(!active || token!=generation){c.close();return;}camera=c;runOnUiThread(()->zoomControls());configure();}public void onDisconnected(CameraDevice c){c.close();camera=null;}public void onError(CameraDevice c,int error){c.close();camera=null;fail("Camera unavailable ("+error+")");}},handler);}catch(Exception e){opening=false;fail("Could not open camera");}
  }
@@ -138,9 +143,22 @@ public class CameraActivity extends Activity {
   CameraCharacteristics ch=characteristics(selected);int sensor=ch.get(CameraCharacteristics.SENSOR_ORIENTATION);int rotation=getWindowManager().getDefaultDisplay().getRotation()*90;boolean front=Integer.valueOf(CameraCharacteristics.LENS_FACING_FRONT).equals(ch.get(CameraCharacteristics.LENS_FACING));b.set(CaptureRequest.JPEG_ORIENTATION,(sensor+(front?rotation:-rotation)+360)%360);
   session.capture(b.build(),null,handler);
  }catch(Exception e){taking=false;shutter.setEnabled(true);fail("Capture failed");}}
- private void review(){if(isFinishing() || !active)return;ImageView photo=new ImageView(this);photo.setAdjustViewBounds(true);BitmapFactory.Options opt=new BitmapFactory.Options();opt.inSampleSize=2;photo.setImageBitmap(BitmapFactory.decodeFile(output.getPath(),opt));
-  new android.app.AlertDialog.Builder(this).setTitle("Use this photo?").setView(photo).setCancelable(false).setNegativeButton("Retake",(d,w)->{output.delete();taking=false;shutter.setEnabled(true);}).setPositiveButton("Use photo",(d,w)->{delivered=true;Intent result=new Intent();result.setData(android.net.Uri.parse("content://com.geminipocket.capture/"+output.getName()));setResult(RESULT_OK,result);finish();}).show();
+ private void review(){review(true);}
+ private void review(boolean animate){
+  if(isFinishing() || (!active && animate) || output==null)return;
+  if(reviewView!=null)return;
+  reviewVisible=true;close();
+  Rect from=new Rect();int[] p=new int[2],h=new int[2];preview.getLocationOnScreen(p);reviewHost.getLocationOnScreen(h);from.set(p[0]-h[0],p[1]-h[1],p[0]-h[0]+preview.getWidth(),p[1]-h[1]+preview.getHeight());
+  try{reviewView=new PhotoReviewView(this,output,from,animate,()->discardReview(),()->{
+   delivered=true;Intent result=new Intent();result.setData(android.net.Uri.parse("content://com.geminipocket.capture/"+output.getName()));setResult(RESULT_OK,result);finish();
+  });reviewHost.addView(reviewView,new FrameLayout.LayoutParams(-1,-1));}catch(Exception e){fail("Could not display photo");}
  }
+ private void discardReview(){
+  if(reviewView!=null){reviewView.dispose();reviewHost.removeView(reviewView);reviewView=null;}
+  if(output!=null){output.delete();output=null;}reviewVisible=false;taking=false;shutter.setEnabled(true);if(active)open();
+ }
+ @Override public void onBackPressed(){if(reviewVisible){discardReview();return;}super.onBackPressed();}
+ @Override protected void onSaveInstanceState(Bundle out){super.onSaveInstanceState(out);if(reviewVisible && output!=null)out.putString("reviewFile",output.getName());}
  private void close(){generation++;opening=false;previewRequest=null;if(session!=null){session.close();session=null;}if(camera!=null){camera.close();camera=null;}if(reader!=null){reader.close();reader=null;}}
  private void fail(String message){runOnUiThread(()->{if(!isFinishing()){Toast.makeText(this,message,Toast.LENGTH_LONG).show();setResult(RESULT_CANCELED);finish();}});}
 }
