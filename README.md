@@ -93,6 +93,14 @@ docs/                              Architecture, security and release notes
 - Private attachment copies can remain briefly for WebView access; see [Privacy](PRIVACY.md).
 - This project has not completed an independent security audit. See [Security](SECURITY.md).
 
+## Inspiration & acknowledgements
+
+Gemini Pocket was inspired by **[geminiAssist](https://github.com/AcideFluorhydrique/geminiAssist)** by **AcideFluorhydrique**, a lightweight WebView wrapper for Google Gemini with optional blocking of non-essential URLs. Trying that app motivated this project's creator to build their own take on the idea and explore improvements to camera integration, attachments, native controls, theming, and the overall experience.
+
+Thank you to geminiAssist for the inspiration. Gemini Pocket is a separate project, not an official continuation, endorsed version, or claim of affiliation. This acknowledgement credits the inspiration; it does not imply that geminiAssist's source code was incorporated. geminiAssist is licensed under GPLv3; its license remains separate from this project's MIT license.
+
+The expressive-loading design references consulted for this project are documented in [loader references](docs/loader-references.md).
+
 ## Contribute
 
 Bug reports should include Android/WebView version, connection mode, exact reproduction steps, and the error text—**not private photos, credentials or unreviewed logs**.
