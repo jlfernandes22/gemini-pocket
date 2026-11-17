@@ -2,7 +2,7 @@
 
 # Gemini Pocket
 
-**Gemini, in a lightweight Android home.**
+**A focused Gemini experience, built around Android.**
 
 An unofficial Android wrapper with thoughtful system integration, private file selection, an in-app camera, and optional restricted browsing.
 
@@ -24,7 +24,9 @@ Gemini Pocket uses Android System WebView and native Java. No bundled browser en
 - **Photos and files:** Android Photo Picker and document picker—no broad gallery permission.
 - **In-app camera:** lens-aware zoom controls, front/back switching, pinch zoom and tap focus.
 - **Native finishing touches:** edge-to-edge layout, light/dark styling, Monet-compatible launcher icon, and expressive-inspired loading visuals.
-- **Browsing controls:** optional HTTPS host restrictions, remembered Gemini camera/microphone consent, and privacy/storage tools.
+- **Browsing controls:** grouped, animated sheets for connection settings, permissions, local storage, and app information.
+- **Private device access:** remembered, origin-scoped camera and microphone choices, with reset controls.
+- **Verified updates:** optional release checks, explicit downloads, checksum and signing-certificate verification, and Android-controlled installation.
 
 > **Unofficial project.** Not affiliated with, endorsed by, or maintained by Google. Gemini's website and services remain subject to Google's terms and availability.
 
@@ -32,9 +34,13 @@ Gemini Pocket uses Android System WebView and native Java. No bundled browser en
 
 Download an APK from [Releases](https://github.com/jlfernandes22/gemini-pocket/releases). Android may ask you to allow installation from your browser or file manager.
 
-Public releases use one persistent release-signing key and increasing version codes, allowing newer releases to install over older public releases while preserving app data. **Development/debug builds use a different key and require a one-time uninstall before moving to public releases.** Back up anything important before uninstalling.
+Public releases use one persistent signing key and increasing Android version codes, allowing newer releases to install over older public releases while preserving app data. Debug builds use a different key and cannot replace a release installation directly. Development builds signed with the release key can update in place only when their version code is lower than the target release.
 
-Each successful push build on `main` creates a release named `build-N`, with a signed APK and SHA-256 checksum. A failed build does not publish a release. These are continuous builds, not a promise that every commit has received manual device testing.
+In the app, open **Browsing controls → About & updates → Check for updates**. Automatic checks are optional and can be enabled during setup or in About. Downloads require your approval; Android handles the final installation confirmation. The updater rejects unexpected packages, older versions, mismatched signing certificates, and downloads that fail integrity checks.
+
+Automatic releases are created only when a push to `main` changes app sources, resources, or build inputs. README, documentation, and test-only changes do **not** publish a new APK. Maintainers can also dispatch the release workflow manually from `main`.
+
+Each successful release build produces a `build-N` release containing a signed APK and SHA-256 checksum. Failed builds publish nothing. Build numbers may contain gaps; they are identifiers, not a claim that every commit received manual device testing.
 
 ## Connection modes
 
@@ -84,13 +90,15 @@ docs/                              Architecture, security and release notes
 
 ## Quality and known limits
 
-`sh test.sh` runs URL/upload assertions, temporary-file tests, lens-threshold tests, structural regression guards, and JavaScript syntax checking when Node is installed. Structural checks are not instrumented Android tests. Camera and WebView behavior require real-device testing.
+`sh test.sh` runs URL and upload policy assertions, temporary-file cleanup tests, lens-threshold tests, real stream-transfer and cancellation tests, structural regression guards, and JavaScript checks when Node is installed. Promotion fixtures cover dismissal, failure recovery, and unrelated-dialog safety.
+
+CI uses the checksum-pinned Gradle wrapper to compile and lint both debug and release variants. Release publication additionally verifies the APK signature and expected certificate. Structural checks are not instrumented Android tests; camera, account, installer, and WebView lifecycle behavior still require real-device testing.
 
 - Android may stop the process; background uploads are not resumable native jobs.
-- Gemini markup and localized action labels can change independently of this app.
+- Gemini markup and localized action labels can change independently of this app. Promotion suppression is conservative and not guaranteed for every language or website revision.
 - Some lenses are unavailable to third-party apps; reported zoom ratios are approximations.
 - Expressive visuals are lightweight Canvas implementations, not the Compose components.
-- Private attachment copies can remain briefly for WebView access; see [Privacy](PRIVACY.md).
+- Private attachment copies remain available while WebView may need them; stale generated files are cleaned on a later launch. See [Privacy](PRIVACY.md).
 - This project has not completed an independent security audit. See [Security](SECURITY.md).
 
 ## Why Gemini Pocket exists
