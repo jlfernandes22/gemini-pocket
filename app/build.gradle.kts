@@ -9,7 +9,7 @@ android {
         applicationId = "com.geminipocket"
         minSdk = 26
         targetSdk = 35
-        versionCode = System.getenv("APP_VERSION_CODE")?.toInt()?.let { 200000 + it }
+        versionCode = System.getenv("APP_VERSION_CODE")?.toInt()?.let { 300000 + it }
             ?: appVersion.getProperty("APP_VERSION_CODE").toInt()
         versionName = appVersion.getProperty("APP_VERSION_NAME") + (System.getenv("APP_VERSION_SUFFIX") ?: "")
     }

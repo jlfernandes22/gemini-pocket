@@ -19,14 +19,18 @@ public final class UrlPolicy {
   return h.equals("gemini.google.com") || h.equals("accounts.google.com") || h.equals("consent.google.com") || h.equals("myaccount.google.com");
  }
  public static boolean navigation(String url,boolean restricted) {
-  String h=host(url); return h!=null && (!restricted || navHost(h) || verification(url,h));
+  String h=host(url); return h!=null && (!restricted || navHost(h) || verification(url,h) || signInHandoff(url,h));
  }
  private static boolean verification(String url,String h){
   try{return h.equals("www.google.com") && new URI(url).getRawPath().startsWith("/sorry/");}catch(Exception e){return false;}
  }
+ private static boolean signInHandoff(String url,String h){
+  try{return GoogleDomains.accountHost(h)&&"/accounts/SetSID".equals(new URI(url).getRawPath());}catch(Exception e){return false;}
+ }
+ public static String displayOrigin(String url){String h=host(url);return h==null?"Unsupported address":"https://"+h;}
  public static boolean resource(String url,boolean restricted) {
   String h=host(url);
-  return h!=null && (!restricted || navHost(h) || domain(h,"gstatic.com") || domain(h,"googleusercontent.com") || domain(h,"googleapis.com") || h.equals("www.google.com") || h.equals("speechs3proto2-pa.clients6.google.com") || h.equals("geminiweb-pa.clients6.google.com") || h.equals("waa-pa.clients6.google.com") || h.equals("signaler-pa.clients6.google.com") || h.equals("push.clients6.google.com") || h.equals("upload.clients6.google.com") || h.equals("apis.google.com") || h.equals("ssl.google-analytics.com"));
+  return h!=null && (!restricted || navHost(h) || signInHandoff(url,h) || domain(h,"gstatic.com") || domain(h,"googleusercontent.com") || domain(h,"googleapis.com") || h.equals("www.google.com") || h.equals("speechs3proto2-pa.clients6.google.com") || h.equals("geminiweb-pa.clients6.google.com") || h.equals("waa-pa.clients6.google.com") || h.equals("signaler-pa.clients6.google.com") || h.equals("push.clients6.google.com") || h.equals("upload.clients6.google.com") || h.equals("apis.google.com") || h.equals("ssl.google-analytics.com"));
  }
  public static boolean mediaOrigin(String url) { return "gemini.google.com".equals(host(url)); }
 }

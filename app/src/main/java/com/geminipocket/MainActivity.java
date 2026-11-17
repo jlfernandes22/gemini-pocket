@@ -331,7 +331,7 @@ public class MainActivity extends Activity {
  private void navigate(String u){if(UrlPolicy.navigation(u,restricted()))web.loadUrl(u);else external(u);}
  private void external(String u){
   if(!UrlPolicy.navigation(u,false)){toast("Blocked unsafe or unsupported URL");return;}
-  new AlertDialog.Builder(this).setTitle("Outside permitted URLs").setMessage("This link is blocked inside the app. Open in your external browser?\n\n"+u).setNegativeButton("Stay here",null).setPositiveButton("Open browser",(d,w)->{try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(u)));}catch(ActivityNotFoundException e){toast("No browser found");}}).show();
+  themedSheet("Outside permitted URLs","This link is blocked inside the app. Open in your external browser?",(content,sheet)->{content.addView(text(UrlPolicy.displayOrigin(u),15));content.addView(text("Path and query details are hidden to protect sign-in information.",12));action(content,"Open browser",()->{sheet.dismiss();try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(u)));}catch(ActivityNotFoundException e){toast("No browser found");}});action(content,"Stay here",()->sheet.dismiss());});
  }
  private boolean acceptsImages(){if(accept==null || accept.length==0)return true;for(String a:accept)if(a==null || a.isEmpty() || a.equals("*/*") || a.startsWith("image/"))return true;return false;}
  private void pickPhotos(){

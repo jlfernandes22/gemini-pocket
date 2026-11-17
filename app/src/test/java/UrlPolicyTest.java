@@ -26,6 +26,25 @@ public class UrlPolicyTest {
   check(UrlPolicy.resource("https://speechs3proto2-pa.clients6.google.com/",true),true,"Observed speech service");
   check(UrlPolicy.navigation("https://speechs3proto2-pa.clients6.google.com/",true),false,"Speech is resource only");
   check(UrlPolicy.resource("https://speechs3proto2-pa.clients6.google.com.evil.org/",true),false,"Speech suffix attack");
+  check(UrlPolicy.navigation("https://accounts.google.pt/accounts/SetSID?ssdc=1",true),true,"Observed Portuguese sign-in cookie handoff");
+  check(UrlPolicy.resource("https://accounts.google.pt/accounts/SetSID?ssdc=1",true),true,"Handoff resource");
+  check(UrlPolicy.navigation("https://accounts.google.pt/accounts/Other",true),false,"No broad regional account access");
+  check(UrlPolicy.navigation("https://accounts.google.pt.evil.org/accounts/SetSID",true),false,"Handoff suffix attack");
+  check(UrlPolicy.navigation("http://accounts.google.pt/accounts/SetSID",true),false,"Handoff HTTPS only");
+  check(UrlPolicy.navigation("https://accounts.google.pt/accounts/SetSID/extra",true),false,"Exact handoff path");
+  try {
+   java.util.List<String> domains=java.nio.file.Files.readAllLines(java.nio.file.Paths.get("tests/fixtures/google-supported-domains.txt"));
+   for(String entry:domains){String domain=entry.trim().substring(1);String regional="https://accounts."+domain;
+    check(UrlPolicy.navigation(regional+"/accounts/SetSID?ssdc=1",true),true,"Regional handoff "+domain);
+    check(UrlPolicy.resource(regional+"/accounts/SetSID",true),true,"Regional resource "+domain);
+    if(!domain.equals("google.com"))check(UrlPolicy.navigation(regional+"/accounts/Other",true),false,"No regional general browsing "+domain);
+    check(UrlPolicy.navigation(regional+".evil.org/accounts/SetSID",true),false,"Regional suffix attack "+domain);
+   }
+  }catch(java.io.IOException e){throw new AssertionError(e);}
+  check(UrlPolicy.navigation("https://accounts.google.evil/accounts/SetSID",true),false,"Unpublished suffix");
+  check(UrlPolicy.navigation("https://accounts.google.co.uk/accounts/%53etSID",true),false,"Encoded path not allowed");
+  check(UrlPolicy.navigation("https://accounts.google.co.uk:444/accounts/SetSID",true),false,"Regional nonstandard port");
+  check(UrlPolicy.navigation("https://user@accounts.google.co.uk/accounts/SetSID",true),false,"Regional userinfo");
   System.out.println("PASS: "+n+" policy assertions");
  }
 }
