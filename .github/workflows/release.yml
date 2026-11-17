@@ -35,6 +35,9 @@ jobs:
           test -n "$KEYSTORE_BASE64" || { echo 'Release signing secret is missing'; exit 1; }
           printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/release.jks"
           chmod 600 "$RUNNER_TEMP/release.jks"
+      - name: Allocate update-compatible build number
+        id: version
+        run: echo "number=$((GITHUB_RUN_NUMBER + 100))" >> "$GITHUB_OUTPUT"
       - name: Build signed APK
         env:
           RELEASE_KEYSTORE: ${{ runner.temp }}/release.jks
@@ -42,12 +45,12 @@ jobs:
           RELEASE_KEY_ALIAS: release
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           # run_number increases for each push in this workflow; preserve workflow identity.
-          APP_VERSION_CODE: ${{ github.run_number }}
-          APP_VERSION_SUFFIX: -build.${{ github.run_number }}
+          APP_VERSION_CODE: ${{ steps.version.outputs.number }}
+          APP_VERSION_SUFFIX: -build.${{ steps.version.outputs.number }}
         run: sh gradlew --no-daemon :app:assembleRelease :app:lintRelease
       - name: Verify and package
         env:
-          RUN_NUMBER: ${{ github.run_number }}
+          RUN_NUMBER: ${{ steps.version.outputs.number }}
         run: |
           mkdir -p dist
           APK="dist/Gemini-Pocket-build-${RUN_NUMBER}.apk"
@@ -58,7 +61,7 @@ jobs:
       - name: Publish commit release
         env:
           GH_TOKEN: ${{ github.token }}
-          RUN_NUMBER: ${{ github.run_number }}
+          RUN_NUMBER: ${{ steps.version.outputs.number }}
         run: |
           TAG="build-${RUN_NUMBER}"
           gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Gemini Pocket · build ${RUN_NUMBER}" --generate-notes --latest=false
