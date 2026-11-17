@@ -1,0 +1,3 @@
+# Grouped settings development design
+
+Approved: compact themed settings sheet, with header handle, current mode summary, side-by-side page actions, collapsed Connection & browsing editor, Privacy & permissions rows and About & updates. Existing web session stays alive until explicit Apply; browser consent unchanged. Reset device choices requires confirmation. Close/Back/outside tap remain accessible alternatives. Drag down only from handle/header or when content starts at scroll top, with touch slop, vertical intent, bounded movement and snap-back. No VScreen; install signed development APK, await user approval before commit/merge or updater test build.

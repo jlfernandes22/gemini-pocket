@@ -50,7 +50,7 @@ public class MainActivity extends Activity {
  private void base(){
   root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setBackgroundColor(dark()?Color.BLACK:Color.WHITE);FrameLayout backdrop=new FrameLayout(this);backdrop.setBackgroundColor(dark()?Color.BLACK:Color.WHITE);backdrop.addView(root,new FrameLayout.LayoutParams(-1,-1));setContentView(backdrop);
   backdrop.setOnApplyWindowInsetsListener((v,i)->{int left,top,right,bottom;
-   if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=i.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());android.graphics.Insets ime=i.getInsets(WindowInsets.Type.ime());left=bars.left;top=bars.top;right=bars.right;bottom=web!=null?ime.bottom:Math.max(bars.bottom,ime.bottom);}else{left=i.getSystemWindowInsetLeft();top=i.getSystemWindowInsetTop();right=i.getSystemWindowInsetRight();bottom=i.getSystemWindowInsetBottom();}
+   if(Build.VERSION.SDK_INT>=30){android.graphics.Insets bars=i.getInsets(WindowInsets.Type.systemBars()|WindowInsets.Type.displayCutout());android.graphics.Insets ime=i.getInsets(WindowInsets.Type.ime());android.graphics.Insets tappable=i.getInsets(WindowInsets.Type.tappableElement());int navigationBottom=tappable.bottom>0?bars.bottom:0;left=bars.left;top=bars.top;right=bars.right;bottom=Math.max(navigationBottom,ime.bottom);}else{left=i.getSystemWindowInsetLeft();top=i.getSystemWindowInsetTop();right=i.getSystemWindowInsetRight();bottom=i.getSystemWindowInsetBottom();}
    root.setPadding(left,top,right,bottom);return Build.VERSION.SDK_INT>=30?WindowInsets.CONSUMED:i.consumeSystemWindowInsets();
   });backdrop.requestApplyInsets();
  }
@@ -65,9 +65,16 @@ public class MainActivity extends Activity {
   LinearLayout browserCard=surfaceCard(content);browserCard.addView(text("Browser session",22));browserCard.addView(text("Keep your existing browser login",14));browserCard.addView(text("Cookies and passwords stay with your browser. Its navigation, permissions and upload controls apply.",15));action(browserCard,"Choose a browser",()->chooseBrowser());
   content.addView(text("Google may limit embedded sign-in. Browser mode is an alternative. Android can stop background work in either mode. Not affiliated with Google.",12));
  }
+ private void mountSheet(AnimatedSheetDialog sheet,LinearLayout c){
+  View handle=new View(this);android.graphics.drawable.GradientDrawable grip=new android.graphics.drawable.GradientDrawable();grip.setColor(dark()?0xFF8F98A8:0xFF737D8E);grip.setCornerRadius(pad(3));handle.setBackground(grip);LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(pad(36),pad(4));hp.gravity=Gravity.CENTER;hp.setMargins(0,pad(4),0,pad(16));FrameLayout gripArea=new FrameLayout(this);gripArea.setContentDescription("Drag down to dismiss");FrameLayout.LayoutParams gripSize=new FrameLayout.LayoutParams(pad(36),pad(4),Gravity.CENTER);gripArea.addView(handle,gripSize);c.addView(gripArea,0,new LinearLayout.LayoutParams(-1,pad(40)));
+  DraggableSheetScrollView scroll=new DraggableSheetScrollView(this);scroll.onDismiss(()->sheet.cancel());scroll.addView(c);android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?0xFF1E1F21:0xFFF2F5FC);bg.setCornerRadii(new float[]{pad(28),pad(28),pad(28),pad(28),0,0,0,0});scroll.setBackground(bg);c.setBackground(null);FrameLayout host=new FrameLayout(this);host.setOnClickListener(v->sheet.cancel());scroll.setOnClickListener(v->{});FrameLayout.LayoutParams panel=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);host.addView(scroll,panel);sheet.setContentView(host);sheet.panel(scroll);Window w=sheet.getWindow();w.setBackgroundDrawableResource(android.R.color.transparent);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND|WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);w.setDimAmount(.4f);w.setLayout(-1,-1);sheet.show();w.setLayout(-1,-1);w.setGravity(Gravity.FILL);w.setNavigationBarColor(dark()?0xFF1E1F21:0xFFF2F5FC);if(Build.VERSION.SDK_INT>=30){w.setDecorFitsSystemWindows(false);w.setNavigationBarContrastEnforced(false);}else w.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+  host.setOnApplyWindowInsetsListener((v,i)->{int bottom=Build.VERSION.SDK_INT>=30?i.getInsets(WindowInsets.Type.navigationBars()).bottom:i.getSystemWindowInsetBottom();c.setPadding(pad(16),pad(12),pad(16),pad(24)+bottom);return Build.VERSION.SDK_INT>=30?WindowInsets.CONSUMED:i.consumeSystemWindowInsets();});host.requestApplyInsets();
+ }
+ private void addSheetBack(LinearLayout content,AnimatedSheetDialog sheet){
+  sheet.backAction(()->settings());ImageButton back=new ImageButton(this);back.setImageResource(R.drawable.ic_back);back.setColorFilter(dark()?0xFFD7E2FF:0xFF304D8C);back.setBackgroundColor(Color.TRANSPARENT);back.setContentDescription("Back to browsing controls");content.addView(back,0,new LinearLayout.LayoutParams(pad(48),pad(48)));back.setOnClickListener(v->sheet.onBackPressed());
+ }
  private Dialog themedSheet(String title,String subtitle,java.util.function.BiConsumer<LinearLayout,Dialog> contents){
-  Dialog sheet=new Dialog(this,R.style.BrowsingSheetTheme);LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(16),pad(16),pad(16),pad(24));c.addView(text(title,24));if(subtitle!=null)c.addView(text(subtitle,14));contents.accept(c,sheet);
-  ScrollView scroll=new ScrollView(this);scroll.addView(c);android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?0xFF1E1F21:0xFFF2F5FC);bg.setCornerRadii(new float[]{pad(28),pad(28),pad(28),pad(28),0,0,0,0});scroll.setBackground(bg);FrameLayout host=new FrameLayout(this);host.setOnClickListener(v->sheet.dismiss());scroll.setOnClickListener(v->{});host.addView(scroll,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));sheet.setContentView(host);Window w=sheet.getWindow();w.setBackgroundDrawableResource(android.R.color.transparent);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);w.setDimAmount(.4f);sheet.show();w.setLayout(-1,-1);w.setNavigationBarColor(dark()?0xFF1E1F21:0xFFF2F5FC);if(Build.VERSION.SDK_INT>=30){w.setDecorFitsSystemWindows(false);w.setNavigationBarContrastEnforced(false);}host.setOnApplyWindowInsetsListener((v,i)->{int bottom=Build.VERSION.SDK_INT>=30?i.getInsets(WindowInsets.Type.navigationBars()).bottom:i.getSystemWindowInsetBottom();c.setPadding(pad(16),pad(16),pad(16),pad(24)+bottom);return Build.VERSION.SDK_INT>=30?WindowInsets.CONSUMED:i.consumeSystemWindowInsets();});host.requestApplyInsets();return sheet;
+  AnimatedSheetDialog sheet=new AnimatedSheetDialog(this);LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(16),pad(12),pad(16),pad(24));c.addView(text(title,24));if(subtitle!=null)c.addView(text(subtitle,14));contents.accept(c,sheet);if(title.equals("Connection & browsing")||title.equals("Gemini Pocket")||title.equals("Reset device access?"))addSheetBack(c,sheet);mountSheet(sheet,c);return sheet;
  }
  private void chooseBrowser(){
   Intent service=new Intent("android.support.customtabs.action.CustomTabsService");List<ResolveInfo> found=getPackageManager().queryIntentServices(service,0);ArrayList<String> packages=new ArrayList<>(),labels=new ArrayList<>();
@@ -108,10 +115,19 @@ public class MainActivity extends Activity {
   View screen=previousScreen;root=previousRoot;previousScreen=null;previousRoot=null;setContentView(screen);screen.requestApplyInsets();return true;
  }
  private void confirmModeSelection(){previousScreen=null;previousRoot=null;destroyWeb();}
+ private void settingsRow(LinearLayout parent,String title,String description,Runnable click){
+  LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(pad(16),pad(12),pad(16),pad(12));row.setMinimumHeight(pad(64));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?0xFF292D36:0xFFE7EDF7);bg.setCornerRadius(pad(20));row.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x22666666),bg,null));TextView name=text(title,16);name.setPadding(0,0,0,pad(4));row.addView(name);TextView detail=text(description,13);detail.setAlpha(.75f);detail.setPadding(0,0,0,0);row.addView(detail);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(pad(8),pad(4),pad(8),pad(4));parent.addView(row,lp);row.setFocusable(true);row.setOnClickListener(v->click.run());
+ }
  private void settings(){
-  final Dialog sheet=new Dialog(this,R.style.BrowsingSheetTheme);LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(16),pad(12),pad(16),pad(24));
-  android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?Color.rgb(30,31,33):Color.rgb(242,245,252));bg.setCornerRadii(new float[]{pad(28),pad(28),pad(28),pad(28),0,0,0,0});c.setBackground(bg);
-  c.addView(text("Browsing controls",22));c.addView(text("Gemini Pocket settings · not Google account settings",12));
+  themedSheet("Browsing controls",("browser".equals(prefs.getString("mode","isolated"))?"Browser session":"Isolated app")+" · "+(restricted()?"Restricted":"Open HTTPS"),(c,sheet)->{
+   LinearLayout quick=new LinearLayout(this);c.addView(quick);LinearLayout reloadBox=new LinearLayout(this),homeBox=new LinearLayout(this);quick.addView(reloadBox,new LinearLayout.LayoutParams(0,-2,1));quick.addView(homeBox,new LinearLayout.LayoutParams(0,-2,1));action(reloadBox,"Reload",()->{sheet.dismiss();navigateWithLoading(false);});action(homeBox,"Home",()->{sheet.dismiss();navigateWithLoading(true);});
+   c.addView(text("CONNECTION",12));settingsRow(c,"Connection & browsing","Session and permitted websites",()->{sheet.dismiss();connectionControls();});
+   c.addView(text("PRIVACY & PERMISSIONS",12));settingsRow(c,"Privacy & storage","Attachments, website cache and session",()->{sheet.dismiss();privacyControls();});settingsRow(c,"Website device access","Reset saved camera and microphone choices",()->{sheet.dismiss();themedSheet("Reset device access?","Gemini will ask for camera and microphone access again. This reloads the page.",(content,confirm)->{action(content,"Reset permissions",()->{prefs.edit().remove("consent.gemini.google.com.audio").remove("consent.gemini.google.com.video").apply();if(pendingPermission!=null)denyPermission(pendingPermission);confirm.dismiss();if(web!=null)web.reload();});action(content,"Cancel",()->confirm.onBackPressed());});});
+   c.addView(text("APP",12));settingsRow(c,"About & updates","Version, updates and project links",()->{sheet.dismiss();about();});
+  });
+ }
+ private void connectionControls(){
+  themedSheet("Connection & browsing","Changes apply only after tapping Apply.",(c,sheet)->{
   RadioGroup choices=new RadioGroup(this);RadioButton locked=new RadioButton(this);locked.setId(View.generateViewId());locked.setText("Restricted browsing\nOnly required Gemini & Google services");locked.setMinHeight(pad(64));choices.addView(locked);
   RadioButton open=new RadioButton(this);open.setId(View.generateViewId());open.setText("Open HTTPS browsing\nAllow other secure websites");open.setMinHeight(pad(64));choices.addView(open);choices.check(restricted()?locked.getId():open.getId());c.addView(choices);
   c.addView(text("Applies only to isolated mode. Not a firewall. Existing pages stay open; new requests use your selection.",13));
@@ -122,38 +138,26 @@ public class MainActivity extends Activity {
    if(browserSelected){chooseBrowser();return;}
    prefs.edit().putString("mode","isolated").apply();if(web==null)isolated();
   });
-  action(c,"Reload page",()->{sheet.dismiss();if(web!=null)web.reload();});
-  action(c,"Home",()->{sheet.dismiss();if(web!=null)web.loadUrl(HOME);});
-  action(c,"Reset website device permissions",()->{prefs.edit().remove("consent.gemini.google.com.audio").remove("consent.gemini.google.com.video").apply();if(pendingPermission!=null)denyPermission(pendingPermission);sheet.dismiss();if(web!=null)web.reload();toast("Website device choices reset. Gemini will ask again.");});
-  action(c,"About Gemini Pocket",()->{sheet.dismiss();about();});
-  action(c,"Privacy & storage",()->{sheet.dismiss();privacyControls();});
-  action(c,"Close",()->sheet.dismiss());ScrollView scroll=new ScrollView(this);scroll.setFillViewport(false);scroll.addView(c);
-  FrameLayout sheetHost=new FrameLayout(this);sheetHost.setOnClickListener(v->sheet.dismiss());scroll.setOnClickListener(v->{});FrameLayout.LayoutParams panel=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);sheetHost.addView(scroll,panel);sheet.setContentView(sheetHost);
-  Window w=sheet.getWindow();w.setBackgroundDrawableResource(android.R.color.transparent);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND|WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);w.setDimAmount(.4f);sheet.show();w.setLayout(-1,-1);w.setGravity(Gravity.FILL);w.setNavigationBarColor(dark()?Color.rgb(30,31,33):Color.rgb(242,245,252));
-  if(Build.VERSION.SDK_INT>=28){WindowManager.LayoutParams attrs=w.getAttributes();attrs.layoutInDisplayCutoutMode=WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;w.setAttributes(attrs);}
-  if(Build.VERSION.SDK_INT>=30){w.setDecorFitsSystemWindows(false);w.setNavigationBarContrastEnforced(false);}else w.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-  scroll.setBackground(c.getBackground());c.setBackground(null);sheetHost.setOnApplyWindowInsetsListener((v,insets)->{int bottom=Build.VERSION.SDK_INT>=30?insets.getInsets(WindowInsets.Type.navigationBars()).bottom:insets.getSystemWindowInsetBottom();c.setPadding(pad(16),pad(12),pad(16),pad(24)+bottom);return Build.VERSION.SDK_INT>=30?WindowInsets.CONSUMED:insets.consumeSystemWindowInsets();});sheetHost.requestApplyInsets();
+  });
  }
  private void privacyControls(){
-  final Dialog sheet=new Dialog(this,R.style.BrowsingSheetTheme);
+  final AnimatedSheetDialog sheet=new AnimatedSheetDialog(this);
   LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(16),pad(12),pad(16),pad(24));
   c.addView(text("Privacy & storage",22));c.addView(text("Manage this app’s local data",14));
   String[] titles={"Temporary attachments","Website cache","Reset website session"};
   String[] details={"Remove camera and upload copies. Gallery originals stay safe.","Free downloaded resources without signing out.","Sign out of isolated mode and erase its website data."};
   for(int i=0;i<titles.length;i++){final int which=i;c.addView(text(details[i],13));action(c,titles[i],()->{sheet.dismiss();confirmPrivacy(which);});}
-  action(c,"Back to browsing controls",()->{sheet.dismiss();settings();});action(c,"Close",()->sheet.dismiss());
-  ScrollView scroll=new ScrollView(this);scroll.addView(c);FrameLayout host=new FrameLayout(this);host.setOnClickListener(v->sheet.dismiss());scroll.setOnClickListener(v->{});host.addView(scroll,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));
-  android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?0xFF1E1F21:0xFFF2F5FC);bg.setCornerRadii(new float[]{pad(28),pad(28),pad(28),pad(28),0,0,0,0});scroll.setBackground(bg);sheet.setContentView(host);Window w=sheet.getWindow();w.setBackgroundDrawableResource(android.R.color.transparent);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);w.setDimAmount(.4f);sheet.show();w.setLayout(-1,-1);if(Build.VERSION.SDK_INT>=30){w.setDecorFitsSystemWindows(false);w.setNavigationBarContrastEnforced(false);}w.setNavigationBarColor(dark()?0xFF1E1F21:0xFFF2F5FC);
-  host.setOnApplyWindowInsetsListener((v,insets)->{int bottom=Build.VERSION.SDK_INT>=30?insets.getInsets(WindowInsets.Type.navigationBars()).bottom:insets.getSystemWindowInsetBottom();c.setPadding(pad(16),pad(12),pad(16),pad(24)+bottom);return Build.VERSION.SDK_INT>=30?WindowInsets.CONSUMED:insets.consumeSystemWindowInsets();});host.requestApplyInsets();
+
+  addSheetBack(c,sheet);mountSheet(sheet,c);
  }
  private void confirmPrivacy(int which){
    String message=which==0?"Remove app-generated attachment copies. Do not continue while an upload or draft attachment is in use. Your gallery originals are untouched.":which==1?"Clear downloaded website resources. Cookies and sign-in remain. Avoid this during uploads.":"This clears isolated-mode cookies and website storage and reloads Gemini. Browser-mode sign-in is not affected. Drafts may be lost.";
-   new AlertDialog.Builder(this).setTitle("Confirm cleanup").setMessage(message).setNegativeButton("Cancel",null).setPositiveButton("Continue",(a,b)->{
+   themedSheet("Confirm cleanup",message,(content,confirm)->{action(content,"Continue",()->{confirm.dismiss();
     if(upload!=null || preparingAttachment){toast("Finish attaching files before cleanup.");return;}
     if(which==0){new Thread(()->{java.io.File[] files=getCacheDir().listFiles();int removed=0;if(files!=null)for(java.io.File f:files)if(f.isFile()&&UploadPolicy.validName(f.getName())&&f.delete())removed++;final int count=removed;runOnUiThread(()->toast("Removed "+count+" temporary attachments"));},"AttachmentCleanup").start();}
     else if(which==1){if(web!=null)web.clearCache(true);toast("Website cache cleared");}
     else{if(web!=null)web.stopLoading();CookieManager.getInstance().removeAllCookies(ok->{CookieManager.getInstance().flush();WebStorage.getInstance().deleteAllData();if(web!=null){web.clearHistory();web.loadUrl(HOME);}});}
-   }).show();
+   });action(content,"Cancel",()->confirm.dismiss());});
  }
  private boolean preparingAttachment;
  private void about(){
@@ -167,7 +171,7 @@ public class MainActivity extends Activity {
    action(content,"Report an issue",()->openAppLink("https://github.com/jlfernandes22/gemini-pocket/issues"));
    action(content,"Privacy",()->openAppLink("https://github.com/jlfernandes22/gemini-pocket/blob/main/PRIVACY.md"));
    action(content,"MIT license",()->openAppLink("https://github.com/jlfernandes22/gemini-pocket/blob/main/LICENSE"));
-   action(content,"Inspired by geminiAssist",()->openAppLink("https://github.com/AcideFluorhydrique/geminiAssist"));action(content,"Close",()->sheet.dismiss());
+   action(content,"Inspired by geminiAssist",()->openAppLink("https://github.com/AcideFluorhydrique/geminiAssist"));
   });
  }
  private void openAppLink(String url){try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));}catch(ActivityNotFoundException e){toast("No browser available");}}
@@ -180,7 +184,7 @@ public class MainActivity extends Activity {
    checkCircle=new UpdateCheckView(this);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(pad(120),pad(120));lp.gravity=Gravity.CENTER;lp.setMargins(0,pad(12),0,pad(16));content.addView(checkCircle,lp);
    checkStatus=text("Checking for updates",21);checkStatus.setGravity(Gravity.CENTER);content.addView(checkStatus);
    checkDetail=text("Looking for a newer public release on GitHub.",14);checkDetail.setGravity(Gravity.CENTER);content.addView(checkDetail);
-   action(content,"Close",()->sheet.dismiss());
+
   });
  }
  private void dismissUpdateChecking(){if(checkSheet!=null){checkSheet.dismiss();checkSheet=null;}}
@@ -209,7 +213,7 @@ public class MainActivity extends Activity {
    org.json.JSONArray assets=release.getJSONArray("assets");org.json.JSONObject found=null;for(int i=0;i<assets.length();i++){org.json.JSONObject a=assets.getJSONObject(i);if(a.getString("name").endsWith(".apk")){if(found!=null)throw new IOException("Ambiguous APK assets");found=a;}}
    if(found==null)throw new IOException("Release has no APK");final String url=found.getString("browser_download_url"),digest=found.optString("digest");final long size=found.getLong("size");final String name=release.optString("name",release.getString("tag_name")),notes=release.optString("body");if(!UpdatePolicy.downloadUrl(url)||size<=0||size>100L*1024*1024||!digest.matches("sha256:[0-9a-fA-F]{64}"))throw new IOException("Release verification data missing");
    runOnUiThread(()->{checkingUpdate=false;dismissUpdateChecking();if(isDestroyed())return;themedSheet("Update available",name,(content,sheet)->{content.addView(text(String.format(java.util.Locale.US,"Download size: %.2f MB",size/1048576.0),14));content.addView(text(notes.length()>2500?notes.substring(0,2500)+"…":notes,13));action(content,"Download update",()->{sheet.dismiss();downloadUpdate(url,digest.substring(7),size);});action(content,"Not now",()->sheet.dismiss());});});
-  }catch(Exception e){runOnUiThread(()->{checkingUpdate=false;dismissUpdateChecking();if(manual&&!isDestroyed())themedSheet("Could not check updates",e.getMessage(),(content,sheet)->{action(content,"Retry",()->{sheet.dismiss();checkUpdate(true);});action(content,"Close",()->sheet.dismiss());});});}},"UpdateCheck").start();
+  }catch(Exception e){runOnUiThread(()->{checkingUpdate=false;dismissUpdateChecking();if(manual&&!isDestroyed())themedSheet("Could not check updates",e.getMessage(),(content,sheet)->{action(content,"Retry",()->{sheet.dismiss();checkUpdate(true);});});});}},"UpdateCheck").start();
  }
  private void downloadUpdate(String url,String sha,long expected){
   if(downloadingUpdate)return;downloadingUpdate=true;cancelUpdate=false;
@@ -219,7 +223,7 @@ public class MainActivity extends Activity {
    if(cancelUpdate)throw new IOException("Cancelled");StringBuilder hash=new StringBuilder();for(byte b:md.digest())hash.append(String.format(java.util.Locale.ROOT,"%02x",b&255));if(received!=expected||!sha.equalsIgnoreCase(hash.toString()))throw new IOException("Download verification failed");
    verifyUpdate(part);if(apk.exists()&&!apk.delete())throw new IOException("Cannot replace old download");if(!part.renameTo(apk))throw new IOException("Cannot store verified update");verifiedUpdate=apk;
    runOnUiThread(()->{downloadingUpdate=false;dialog.dismiss();if(!isDestroyed())installVerifiedUpdate();});
-  }catch(Exception e){part.delete();runOnUiThread(()->{downloadingUpdate=false;dialog.dismiss();if(!cancelUpdate&&!isDestroyed())themedSheet("Update download failed",e.getMessage(),(content,sheet)->{action(content,"Retry",()->{sheet.dismiss();downloadUpdate(url,sha,expected);});action(content,"Close",()->sheet.dismiss());});});}finally{if(updateConnection!=null)updateConnection.disconnect();updateConnection=null;}},"UpdateDownload").start();
+  }catch(Exception e){part.delete();runOnUiThread(()->{downloadingUpdate=false;dialog.dismiss();if(!cancelUpdate&&!isDestroyed())themedSheet("Update download failed",e.getMessage(),(content,sheet)->{action(content,"Retry",()->{sheet.dismiss();downloadUpdate(url,sha,expected);});});});}finally{if(updateConnection!=null)updateConnection.disconnect();updateConnection=null;}},"UpdateDownload").start();
  }
  @SuppressWarnings("deprecation") private void verifyUpdate(File apk)throws Exception{
   android.content.pm.PackageInfo current=getPackageManager().getPackageInfo(getPackageName(),android.content.pm.PackageManager.GET_SIGNATURES),candidate=getPackageManager().getPackageArchiveInfo(apk.getPath(),android.content.pm.PackageManager.GET_SIGNATURES);
@@ -233,10 +237,8 @@ public class MainActivity extends Activity {
  }
  @Override protected void onResume(){super.onResume();if(awaitingInstallPermission){awaitingInstallPermission=false;if(getPackageManager().canRequestPackageInstalls())installVerifiedUpdate();}if(prefs!=null&&prefs.getBoolean("autoUpdates",false)&&System.currentTimeMillis()-prefs.getLong("lastUpdateCheck",0)>24L*60*60*1000)checkUpdate(false);}
  private void updateShield(){if(shield!=null){shield.setContentDescription("Browsing controls: "+(restricted()?"restricted":"open HTTPS"));shield.setAlpha(restricted()?1f:.65f);}}
- @SuppressWarnings("SetJavaScriptEnabled") private void isolated(){
-  base();status=new TextView(this);
-  FrameLayout stage=new FrameLayout(this);root.addView(stage,new LinearLayout.LayoutParams(-1,0,1));
-  web=new WebView(this);web.setBackgroundColor(dark()?Color.BLACK:Color.WHITE);stage.addView(web,new FrameLayout.LayoutParams(-1,-1));
+ private void showLoadingOverlay(FrameLayout stage){
+  if(launchCover!=null){launchCover.animate().cancel();if(launchCover.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)launchCover.getParent()).removeView(launchCover);}
   pageVisible=false;
   launchCover=new LinearLayout(this);launchCover.setOrientation(LinearLayout.VERTICAL);launchCover.setGravity(Gravity.CENTER);launchCover.setBackgroundColor(dark()?Color.BLACK:Color.WHITE);
   ExpressiveLoader loader=new ExpressiveLoader(this);launchCover.addView(loader,new LinearLayout.LayoutParams(pad(96),pad(96)));
@@ -247,6 +249,14 @@ public class MainActivity extends Activity {
   retryLaunch.setOnClickListener(v->{startLaunchAttempt();web.reload();});
   openIncomplete=new Button(this);openIncomplete.setText("Open page anyway");openIncomplete.setAllCaps(false);openIncomplete.setTextSize(15);openIncomplete.setTextColor(dark()?0xFFD7E2FF:0xFF304D8C);openIncomplete.setPadding(pad(24),0,pad(24),0);openIncomplete.setMinHeight(pad(48));android.graphics.drawable.GradientDrawable secondaryBg=new android.graphics.drawable.GradientDrawable();secondaryBg.setColor(dark()?0xFF2B303A:0xFFE3EAF7);secondaryBg.setCornerRadius(pad(28));openIncomplete.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(dark()?0x33AAC7FF:0x223459CF),secondaryBg,null));openIncomplete.setVisibility(View.GONE);LinearLayout.LayoutParams secondarySize=new LinearLayout.LayoutParams(-2,pad(48));secondarySize.setMargins(0,pad(12),0,0);launchCover.addView(openIncomplete,secondarySize);openIncomplete.setOnClickListener(v->revealPage());
   stage.addView(launchCover,new FrameLayout.LayoutParams(-1,-1));startLaunchAttempt();
+  if(shield!=null&&shield.getParent()==stage)shield.bringToFront();
+ }
+ private void navigateWithLoading(boolean home){if(web==null||!(web.getParent() instanceof FrameLayout))return;showLoadingOverlay((FrameLayout)web.getParent());if(home)web.loadUrl(HOME);else web.reload();}
+ @SuppressWarnings("SetJavaScriptEnabled") private void isolated(){
+  base();status=new TextView(this);
+  FrameLayout stage=new FrameLayout(this);root.addView(stage,new LinearLayout.LayoutParams(-1,0,1));
+  web=new WebView(this);web.setBackgroundColor(dark()?Color.BLACK:Color.WHITE);stage.addView(web,new FrameLayout.LayoutParams(-1,-1));
+  showLoadingOverlay(stage);
   shield=new ImageButton(this);shield.setImageResource(R.drawable.ic_shield);shield.setColorFilter(dark()?Color.rgb(210,220,240):Color.rgb(65,80,110));shield.setPadding(pad(12),pad(12),pad(12),pad(12));android.graphics.drawable.GradientDrawable buttonBg=new android.graphics.drawable.GradientDrawable();buttonBg.setColor(dark()?0xDD24262B:0xDDEEF2FA);buttonBg.setCornerRadius(pad(22));shield.setBackground(buttonBg);
   FrameLayout.LayoutParams shieldLayout=new FrameLayout.LayoutParams(pad(44),pad(44),Gravity.TOP|Gravity.END);shieldLayout.topMargin=pad(58);shieldLayout.rightMargin=pad(8);stage.addView(shield,shieldLayout);updateShield();shield.setOnClickListener(v->settings());
   WebSettings s=web.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setAllowFileAccess(false);s.setAllowContentAccess(true);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);s.setSupportMultipleWindows(true);s.setJavaScriptCanOpenWindowsAutomatically(false);s.setMediaPlaybackRequiresUserGesture(true);s.setSafeBrowsingEnabled(true);
@@ -349,13 +359,13 @@ public class MainActivity extends Activity {
   boolean remembered=true;
   for(String resource:r.getResources()){String key=consentKey(resource);if(key==null){r.deny();pendingPermission=null;return;}String choice=prefs.getString(key,"");if("deny".equals(choice)){denyPermission(r);return;}if(!"allow".equals(choice))remembered=false;}
   if(remembered){requestDevicePermissions(r);return;}
-  final Dialog consent=new Dialog(this,R.style.BrowsingSheetTheme);LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(pad(20),pad(16),pad(20),pad(28));
+  final AnimatedSheetDialog consent=new AnimatedSheetDialog(this);LinearLayout content=new LinearLayout(this);content.setOrientation(LinearLayout.VERTICAL);content.setPadding(pad(20),pad(16),pad(20),pad(28));
   ArrayList<String> devices=new ArrayList<>();for(String resource:r.getResources()){if(PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource))devices.add("microphone");if(PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource))devices.add("camera");}
   if(devices.isEmpty()){denyPermission(r);return;}
   content.addView(text("Gemini device access",22));content.addView(text("Allow gemini.google.com to use your "+android.text.TextUtils.join(" and ",devices)+"?",16));content.addView(text("Only the requested devices are allowed. Android will ask for any missing permissions. Your choice is saved for Gemini on this phone. Reset website device permissions in Browsing controls to ask again. Android permissions still apply.",13));
   action(content,"Allow",()->{consent.dismiss();if(pendingPermission!=r)return;rememberDeviceChoice(r,"allow");requestDevicePermissions(r);});
   action(content,"Deny",()->{rememberDeviceChoice(r,"deny");denyPermission(r);consent.dismiss();});consent.setOnCancelListener(d->denyPermission(r));
-  FrameLayout host=new FrameLayout(this);host.setOnClickListener(v->{denyPermission(r);consent.dismiss();});content.setOnClickListener(v->{});android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?0xFF1E1F21:0xFFF2F5FC);bg.setCornerRadii(new float[]{pad(28),pad(28),pad(28),pad(28),0,0,0,0});content.setBackground(bg);host.addView(content,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));consent.setContentView(host);Window w=consent.getWindow();w.setBackgroundDrawableResource(android.R.color.transparent);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);w.setDimAmount(.4f);consent.show();w.setLayout(-1,-1);w.setNavigationBarColor(dark()?0xFF1E1F21:0xFFF2F5FC);if(Build.VERSION.SDK_INT>=30){w.setDecorFitsSystemWindows(false);w.setNavigationBarContrastEnforced(false);}host.setOnApplyWindowInsetsListener((v,i)->{int bottom=Build.VERSION.SDK_INT>=30?i.getInsets(WindowInsets.Type.navigationBars()).bottom:i.getSystemWindowInsetBottom();content.setPadding(pad(20),pad(16),pad(20),pad(28)+bottom);return Build.VERSION.SDK_INT>=30?WindowInsets.CONSUMED:i.consumeSystemWindowInsets();});host.requestApplyInsets();
+  mountSheet(consent,content);
 
  }
  private String consentKey(String resource){return PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)?"consent.gemini.google.com.audio":PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)?"consent.gemini.google.com.video":null;}
