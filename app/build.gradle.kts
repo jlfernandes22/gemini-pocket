@@ -5,6 +5,7 @@ val appVersion = Properties().apply { rootProject.file("version.properties").inp
 android {
     namespace = "com.geminipocket"
     compileSdk = 35
+    buildToolsVersion = "35.0.0"
     defaultConfig {
         applicationId = "com.geminipocket"
         minSdk = 26

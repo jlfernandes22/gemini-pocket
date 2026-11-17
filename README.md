@@ -51,13 +51,13 @@ The host filter is **not a firewall**. It covers intercepted WebView HTTPS reque
 
 ### Android Studio / Gradle
 
-Requirements: JDK 17, Gradle 8.9, Android SDK 35. Open this directory in Android Studio, or run:
+Requirements: JDK 17 and Android SDK 35. The wrapper pins Gradle 8.9 and verifies its download checksum. Open this directory in Android Studio, or run:
 
 ```sh
-gradle :app:assembleDebug :app:lintDebug
+sh gradlew :app:assembleDebug :app:lintDebug
 ```
 
-A Gradle wrapper is not bundled. Release signing reads environment variables; see [Releasing](docs/RELEASING.md). Never commit signing keys or passwords.
+The wrapper JAR checksum is checked in CI. Release signing reads environment variables; see [Releasing](docs/RELEASING.md). Never commit signing keys or passwords.
 
 ### On-device manual build
 

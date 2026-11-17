@@ -3,25 +3,29 @@ on:
   push:
     branches: [main]
 permissions:
-  contents: write
+  contents: read
 jobs:
   release:
-    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5
         with:
           distribution: temurin
           java-version: '17'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
         with:
           packages: platform-tools platforms;android-35 build-tools;35.0.0
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '8.9'
+      - uses: gradle/actions/setup-gradle@48b5f213c81028ace310571dc5ec0fbbca0b2947 # v4
+
+      - name: Verify Gradle wrapper
+        run: echo '498495120a03b9a6ab5d155f5de3c8f0d986a449153702fb80fc80e134484f17  gradle/wrapper/gradle-wrapper.jar' | sha256sum -c -
       - name: Run regression tests
         run: sh test.sh
       - name: Restore release key
@@ -40,7 +44,7 @@ jobs:
           # run_number increases for each push in this workflow; preserve workflow identity.
           APP_VERSION_CODE: ${{ github.run_number }}
           APP_VERSION_SUFFIX: -build.${{ github.run_number }}
-        run: gradle --no-daemon :app:assembleRelease :app:lintRelease
+        run: sh gradlew --no-daemon :app:assembleRelease :app:lintRelease
       - name: Verify and package
         env:
           RUN_NUMBER: ${{ github.run_number }}
@@ -49,6 +53,7 @@ jobs:
           APK="dist/Gemini-Pocket-build-${RUN_NUMBER}.apk"
           cp app/build/outputs/apk/release/app-release.apk "$APK"
           "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose "$APK"
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$APK" | grep -F 'fde3133f5fc9aa3ddaa429edf43bbc646b6f0d8e23928eca6fbc736d1dfcb206'
           (cd dist && sha256sum *.apk > SHA256SUMS.txt)
       - name: Publish commit release
         env:
@@ -56,13 +61,31 @@ jobs:
           RUN_NUMBER: ${{ github.run_number }}
         run: |
           TAG="build-${RUN_NUMBER}"
-          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Gemini Pocket · build ${RUN_NUMBER}" --generate-notes
+          gh release create "$TAG" dist/* --target "$GITHUB_SHA" --title "Gemini Pocket · build ${RUN_NUMBER}" --generate-notes --latest=false
       - name: Remove temporary signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
       - name: Upload lint reports
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: lint-report
           path: app/build/reports/lint-results-*
+  promote-latest:
+    needs: release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    concurrency:
+      group: promote-latest-release
+      cancel-in-progress: false
+    steps:
+      - name: Mark highest published build latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          TAG=$(gh api --paginate "repos/$GH_REPO/releases?per_page=100" --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' | grep -E '^build-[0-9]+$' | sort -t- -k2,2n | tail -1)
+          test -n "$TAG"
+          gh release edit "$TAG" --latest

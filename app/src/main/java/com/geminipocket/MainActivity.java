@@ -65,11 +65,7 @@ public class MainActivity extends Activity {
   LinearLayout browserCard=surfaceCard(content);browserCard.addView(text("Browser session",22));browserCard.addView(text("Keep your existing browser login",14));browserCard.addView(text("Cookies and passwords stay with your browser. Its navigation, permissions and upload controls apply.",15));action(browserCard,"Choose a browser",()->chooseBrowser());
   content.addView(text("Google may limit embedded sign-in. Browser mode is an alternative. Android can stop background work in either mode. Not affiliated with Google.",12));
  }
- private void mountSheet(AnimatedSheetDialog sheet,LinearLayout c){
-  View handle=new View(this);android.graphics.drawable.GradientDrawable grip=new android.graphics.drawable.GradientDrawable();grip.setColor(dark()?0xFF8F98A8:0xFF737D8E);grip.setCornerRadius(pad(3));handle.setBackground(grip);LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(pad(36),pad(4));hp.gravity=Gravity.CENTER;hp.setMargins(0,pad(4),0,pad(16));FrameLayout gripArea=new FrameLayout(this);gripArea.setContentDescription("Drag down to dismiss");FrameLayout.LayoutParams gripSize=new FrameLayout.LayoutParams(pad(36),pad(4),Gravity.CENTER);gripArea.addView(handle,gripSize);c.addView(gripArea,0,new LinearLayout.LayoutParams(-1,pad(40)));
-  DraggableSheetScrollView scroll=new DraggableSheetScrollView(this);scroll.onDismiss(()->sheet.cancel());scroll.addView(c);android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?0xFF1E1F21:0xFFF2F5FC);bg.setCornerRadii(new float[]{pad(28),pad(28),pad(28),pad(28),0,0,0,0});scroll.setBackground(bg);c.setBackground(null);FrameLayout host=new FrameLayout(this);host.setOnClickListener(v->sheet.cancel());scroll.setOnClickListener(v->{});FrameLayout.LayoutParams panel=new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM);host.addView(scroll,panel);sheet.setContentView(host);sheet.panel(scroll);Window w=sheet.getWindow();w.setBackgroundDrawableResource(android.R.color.transparent);w.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND|WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);w.setDimAmount(.4f);w.setLayout(-1,-1);sheet.show();w.setLayout(-1,-1);w.setGravity(Gravity.FILL);w.setNavigationBarColor(dark()?0xFF1E1F21:0xFFF2F5FC);if(Build.VERSION.SDK_INT>=30){w.setDecorFitsSystemWindows(false);w.setNavigationBarContrastEnforced(false);}else w.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
-  host.setOnApplyWindowInsetsListener((v,i)->{int bottom=Build.VERSION.SDK_INT>=30?i.getInsets(WindowInsets.Type.navigationBars()).bottom:i.getSystemWindowInsetBottom();c.setPadding(pad(16),pad(12),pad(16),pad(24)+bottom);return Build.VERSION.SDK_INT>=30?WindowInsets.CONSUMED:i.consumeSystemWindowInsets();});host.requestApplyInsets();
- }
+ private void mountSheet(AnimatedSheetDialog sheet,LinearLayout content){SheetHost.mount(this,sheet,content);}
  private void addSheetBack(LinearLayout content,AnimatedSheetDialog sheet){
   sheet.backAction(()->settings());ImageButton back=new ImageButton(this);back.setImageResource(R.drawable.ic_back);back.setColorFilter(dark()?0xFFD7E2FF:0xFF304D8C);back.setBackgroundColor(Color.TRANSPARENT);back.setContentDescription("Back to browsing controls");content.addView(back,0,new LinearLayout.LayoutParams(pad(48),pad(48)));back.setOnClickListener(v->sheet.onBackPressed());
  }
@@ -193,22 +189,15 @@ public class MainActivity extends Activity {
   checkCircle.finishCheck();checkStatus.setText("Up to date");checkDetail.setText(installed>published?"Your installed build is ahead of the latest public release. No downgrade will be offered.":"You’re running the latest public release.");
  }
  private volatile boolean cancelUpdate;
+ private Operation attachmentOperation;
+ private ValueCallback<Uri[]> preparingCallback;
+ private Operation updateOperation;
  private java.net.HttpURLConnection updateConnection;
  private java.io.File verifiedUpdate;
- private long versionCode(android.content.pm.PackageInfo p){return Build.VERSION.SDK_INT>=28?p.getLongVersionCode():p.versionCode;}
- private java.net.HttpURLConnection updateRequest(String address)throws Exception{
-  for(int hop=0;hop<5;hop++){
-   if(!address.equals("https://api.github.com/repos/jlfernandes22/gemini-pocket/releases/latest")&&!UpdatePolicy.downloadUrl(address))throw new IOException("Untrusted update URL");
-   java.net.HttpURLConnection c=(java.net.HttpURLConnection)new java.net.URL(address).openConnection();c.setInstanceFollowRedirects(false);c.setConnectTimeout(15000);c.setReadTimeout(20000);c.setRequestProperty("User-Agent","Gemini-Pocket-Updater");int code=c.getResponseCode();
-   if(code>=300&&code<400){String next=c.getHeaderField("Location");c.disconnect();if(next==null)throw new IOException("Missing redirect");address=new java.net.URL(new java.net.URL(address),next).toString();continue;}
-   if(code!=200){c.disconnect();throw new IOException("GitHub HTTP "+code);}return c;
-  }throw new IOException("Too many redirects");
- }
  private void checkUpdate(boolean manual){
   if(checkingUpdate||downloadingUpdate){if(manual)toast("Update task already running");return;}checkingUpdate=true;prefs.edit().putLong("lastUpdateCheck",System.currentTimeMillis()).apply();if(manual)showUpdateChecking();
   new Thread(()->{try{
-   java.net.HttpURLConnection c=updateRequest("https://api.github.com/repos/jlfernandes22/gemini-pocket/releases/latest");String json;try(InputStream in=c.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buf=new byte[4096];int n;while((n=in.read(buf))!=-1){if(out.size()+n>2*1024*1024)throw new IOException("Release metadata too large");out.write(buf,0,n);}json=new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);}finally{c.disconnect();}
-   org.json.JSONObject release=new org.json.JSONObject(json);long published=UpdatePolicy.publishedCode(release.getString("tag_name"));long installed=versionCode(getPackageManager().getPackageInfo(getPackageName(),0));
+   final org.json.JSONObject release=UpdateClient.latestRelease();long published=UpdatePolicy.publishedCode(release.getString("tag_name"));long installed=UpdateClient.versionCode(getPackageManager().getPackageInfo(getPackageName(),0));
    if(release.optBoolean("prerelease")||release.optBoolean("draft")||published<=installed){runOnUiThread(()->{checkingUpdate=false;if(manual&&!isDestroyed())showUpToDate(published,installed);});return;}
    org.json.JSONArray assets=release.getJSONArray("assets");org.json.JSONObject found=null;for(int i=0;i<assets.length();i++){org.json.JSONObject a=assets.getJSONObject(i);if(a.getString("name").endsWith(".apk")){if(found!=null)throw new IOException("Ambiguous APK assets");found=a;}}
    if(found==null)throw new IOException("Release has no APK");final String url=found.getString("browser_download_url"),digest=found.optString("digest");final long size=found.getLong("size");final String name=release.optString("name",release.getString("tag_name")),notes=release.optString("body");if(!UpdatePolicy.downloadUrl(url)||size<=0||size>100L*1024*1024||!digest.matches("sha256:[0-9a-fA-F]{64}"))throw new IOException("Release verification data missing");
@@ -216,22 +205,21 @@ public class MainActivity extends Activity {
   }catch(Exception e){runOnUiThread(()->{checkingUpdate=false;dismissUpdateChecking();if(manual&&!isDestroyed())themedSheet("Could not check updates",e.getMessage(),(content,sheet)->{action(content,"Retry",()->{sheet.dismiss();checkUpdate(true);});});});}},"UpdateCheck").start();
  }
  private void downloadUpdate(String url,String sha,long expected){
-  if(downloadingUpdate)return;downloadingUpdate=true;cancelUpdate=false;
-  final TextView[] label=new TextView[1];final UpdateProgressView[] ring=new UpdateProgressView[1];final Dialog dialog=themedSheet("Downloading update","Keep Gemini Pocket open until verification finishes.",(content,sheet)->{ring[0]=new UpdateProgressView(this);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(pad(120),pad(120));lp.gravity=Gravity.CENTER;content.addView(ring[0],lp);label[0]=text("Starting download…",14);label[0].setGravity(Gravity.CENTER);content.addView(label[0]);action(content,"Cancel",()->{cancelUpdate=true;if(updateConnection!=null)updateConnection.disconnect();sheet.dismiss();});});dialog.setOnDismissListener(d->{if(downloadingUpdate){cancelUpdate=true;if(updateConnection!=null)updateConnection.disconnect();}});
-  new Thread(()->{File dir=new File(getFilesDir(),"updates");dir.mkdirs();File part=new File(dir,"update.part"),apk=new File(dir,"update.apk");try{
-   updateConnection=updateRequest(url);java.security.MessageDigest md=java.security.MessageDigest.getInstance("SHA-256");long received=0;int previous=-1;try(InputStream in=updateConnection.getInputStream();OutputStream out=new FileOutputStream(part)){byte[] buf=new byte[32768];int n;while((n=in.read(buf))!=-1){if(cancelUpdate)throw new IOException("Cancelled");received+=n;if(received>expected)throw new IOException("Unexpected download size");out.write(buf,0,n);md.update(buf,0,n);int percent=(int)(received*100/expected);if(percent!=previous){previous=percent;final int p=percent;runOnUiThread(()->{if(!isDestroyed()){ring[0].progress(p);label[0].setText("Downloading · "+p+"%");}});}}}
-   if(cancelUpdate)throw new IOException("Cancelled");StringBuilder hash=new StringBuilder();for(byte b:md.digest())hash.append(String.format(java.util.Locale.ROOT,"%02x",b&255));if(received!=expected||!sha.equalsIgnoreCase(hash.toString()))throw new IOException("Download verification failed");
-   verifyUpdate(part);if(apk.exists()&&!apk.delete())throw new IOException("Cannot replace old download");if(!part.renameTo(apk))throw new IOException("Cannot store verified update");verifiedUpdate=apk;
-   runOnUiThread(()->{downloadingUpdate=false;dialog.dismiss();if(!isDestroyed())installVerifiedUpdate();});
-  }catch(Exception e){part.delete();runOnUiThread(()->{downloadingUpdate=false;dialog.dismiss();if(!cancelUpdate&&!isDestroyed())themedSheet("Update download failed",e.getMessage(),(content,sheet)->{action(content,"Retry",()->{sheet.dismiss();downloadUpdate(url,sha,expected);});});});}finally{if(updateConnection!=null)updateConnection.disconnect();updateConnection=null;}},"UpdateDownload").start();
+  if(downloadingUpdate)return;downloadingUpdate=true;cancelUpdate=false;final Operation operation=new Operation();updateOperation=operation;verifiedUpdate=null;
+  final TextView[] label=new TextView[1];final UpdateProgressView[] ring=new UpdateProgressView[1];final Dialog dialog=themedSheet("Downloading update","Keep Gemini Pocket open until verification finishes.",(content,sheet)->{ring[0]=new UpdateProgressView(this);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(pad(120),pad(120));lp.gravity=Gravity.CENTER;content.addView(ring[0],lp);label[0]=text("Starting download…",14);label[0].setGravity(Gravity.CENTER);content.addView(label[0]);action(content,"Cancel",()->{cancelUpdate=true;operation.cancel();if(updateConnection!=null)updateConnection.disconnect();sheet.dismiss();});});dialog.setOnCancelListener(d->{operation.cancel();cancelUpdate=true;if(updateConnection!=null)updateConnection.disconnect();});dialog.setOnDismissListener(d->{if(downloadingUpdate){operation.cancel();cancelUpdate=true;if(updateConnection!=null)updateConnection.disconnect();}});
+  new Thread(()->{java.net.HttpURLConnection connection=null;File dir=new File(getFilesDir(),"updates");dir.mkdirs();File part=new File(dir,"update.part"),apk=new File(dir,"update.apk");try{
+   connection=UpdateClient.request(url);updateConnection=connection;try(InputStream in=connection.getInputStream();OutputStream out=new FileOutputStream(part)){
+    Transfer.download(in,out,expected,sha,()->cancelUpdate||!operation.active(),p->runOnUiThread(()->{if(!isDestroyed()){ring[0].progress(p);label[0].setText("Downloading · "+p+"%");}}));
+   }
+   verifyUpdate(part);if(cancelUpdate||!operation.active())throw new IOException("Cancelled");if(apk.exists()&&!apk.delete())throw new IOException("Cannot replace old download");if(!part.renameTo(apk))throw new IOException("Cannot store verified update");verifiedUpdate=apk;
+   runOnUiThread(()->{boolean allowed=updateOperation==operation&&operation.active()&&!cancelUpdate&&!isDestroyed();downloadingUpdate=false;dialog.dismiss();if(allowed&&operation.finish())installVerifiedUpdate();else{operation.cancel();apk.delete();verifiedUpdate=null;}});
+  }catch(Exception e){part.delete();runOnUiThread(()->{downloadingUpdate=false;dialog.dismiss();if(!cancelUpdate&&!isDestroyed())themedSheet("Update download failed",e.getMessage(),(content,sheet)->{action(content,"Retry",()->{sheet.dismiss();downloadUpdate(url,sha,expected);});});});}finally{if(connection!=null)connection.disconnect();if(updateConnection==connection)updateConnection=null;}},"UpdateDownload").start();
  }
- @SuppressWarnings("deprecation") private void verifyUpdate(File apk)throws Exception{
-  android.content.pm.PackageInfo current=getPackageManager().getPackageInfo(getPackageName(),android.content.pm.PackageManager.GET_SIGNATURES),candidate=getPackageManager().getPackageArchiveInfo(apk.getPath(),android.content.pm.PackageManager.GET_SIGNATURES);
-  if(candidate==null||!getPackageName().equals(candidate.packageName)||versionCode(candidate)<=versionCode(current)||current.signatures==null||candidate.signatures==null||!java.util.Arrays.equals(current.signatures,candidate.signatures))throw new SecurityException("APK identity, version or signing certificate does not match");
- }
+ private void verifyUpdate(File apk)throws Exception{UpdateClient.verify(this,apk);}
  private void installVerifiedUpdate(){
-  if(verifiedUpdate==null||!verifiedUpdate.isFile())return;try{verifyUpdate(verifiedUpdate);
+  if(cancelUpdate||isDestroyed()||verifiedUpdate==null||!verifiedUpdate.isFile())return;try{verifyUpdate(verifiedUpdate);
    if(!getPackageManager().canRequestPackageInstalls()){themedSheet("Allow update installation","Android requires permission to install updates from Gemini Pocket. Enable it on the next screen, then return.",(content,sheet)->{action(content,"Open Android settings",()->{sheet.dismiss();awaitingInstallPermission=true;startActivity(new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName())));});action(content,"Not now",()->sheet.dismiss());});return;}
+   if(cancelUpdate||isDestroyed())return;
    Intent i=new Intent(Intent.ACTION_VIEW);i.setDataAndType(Uri.parse("content://com.geminipocket.updates/update.apk"),"application/vnd.android.package-archive");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(i);
   }catch(Exception e){toast("Could not install update: "+e.getMessage());}
  }
@@ -263,7 +251,7 @@ public class MainActivity extends Activity {
   CookieManager.getInstance().setAcceptCookie(true);CookieManager.getInstance().setAcceptThirdPartyCookies(web,true);
   web.setWebViewClient(client());web.setWebChromeClient(new WebChromeClient(){
    @Override public boolean onConsoleMessage(ConsoleMessage m){
-    if(m.message().startsWith("GP_MENU ") && m.message().length()<16000){android.util.Log.i("GeminiMenu",m.message());return true;}if(m.message().matches("GP_MEDIA (granted|ended|error [A-Za-z]+)")){android.util.Log.i("GeminiMedia",m.message());return true;}if(m.message().matches("GP_ACTION (photos|files|camera)")){attachmentAction=m.message().substring(10);attachmentActionAt=SystemClock.elapsedRealtime();return true;}
+    if(m.message().matches("GP_MEDIA (granted|ended|error [A-Za-z]+)")){android.util.Log.i("GeminiMedia",m.message());return true;}if(m.message().matches("GP_ACTION (photos|files|camera)")){attachmentAction=m.message().substring(10);attachmentActionAt=SystemClock.elapsedRealtime();return true;}
     return false;
    }
    @Override public void onProgressChanged(WebView v,int p){}
@@ -313,8 +301,15 @@ public class MainActivity extends Activity {
   }catch(IOException e){integrationScript="";android.util.Log.w("GeminiPocket","UI integration unavailable",e);}
   return integrationScript;
  }
+ private String promotionScript;
+ private void suppressPromotion(WebView view,String url){
+  if(!UrlPolicy.mediaOrigin(url))return;
+  if(promotionScript==null){try(InputStream in=getAssets().open("app-promotion.js");ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buffer=new byte[4096];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);promotionScript=new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);}catch(IOException e){return;}}
+  view.evaluateJavascript(promotionScript,null);
+ }
  private WebViewClient client(){return new WebViewClient(){
-  @Override public void onPageCommitVisible(WebView v,String u){awaitGeminiReady(v,u,0,launchAttempt);}
+  @Override public void onPageStarted(WebView v,String u,android.graphics.Bitmap icon){suppressPromotion(v,u);}
+  @Override public void onPageCommitVisible(WebView v,String u){suppressPromotion(v,u);awaitGeminiReady(v,u,0,launchAttempt);}
 
   @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){if(!UrlPolicy.navigation(r.getUrl().toString(),restricted())){if(r.isForMainFrame())external(r.getUrl().toString());return true;}return false;}
   @Override public WebResourceResponse shouldInterceptRequest(WebView v,WebResourceRequest r){
@@ -323,7 +318,7 @@ public class MainActivity extends Activity {
    boolean ok=r.isForMainFrame()?UrlPolicy.navigation(u,restricted()):UrlPolicy.resource(u,restricted());
    if(ok)return null;android.util.Log.w("GeminiUpload","blocked resource scheme="+r.getUrl().getScheme()+" host="+r.getUrl().getHost());return new WebResourceResponse("text/plain","UTF-8",403,"Blocked by URL policy",Collections.emptyMap(),new ByteArrayInputStream(new byte[0]));
   }
-  @Override public void onPageFinished(WebView v,String u){if(UrlPolicy.mediaOrigin(u))v.evaluateJavascript(websiteScript(),null);CookieManager.getInstance().flush();status.setText("Gemini · "+(restricted()?"restricted":"open HTTPS"));}
+  @Override public void onPageFinished(WebView v,String u){suppressPromotion(v,u);if(UrlPolicy.mediaOrigin(u))v.evaluateJavascript(websiteScript(),null);CookieManager.getInstance().flush();status.setText("Gemini · "+(restricted()?"restricted":"open HTTPS"));}
   @Override public void onReceivedSslError(WebView v,SslErrorHandler h,android.net.http.SslError e){h.cancel();launchError("Secure connection failed. Certificate errors cannot be bypassed.");}
   @Override public void onReceivedError(WebView v,WebResourceRequest r,WebResourceError e){if(r.isForMainFrame())launchError("Connection failed. Check your network, then Retry or use browser mode.");}
   @Override public boolean onRenderProcessGone(WebView v,RenderProcessGoneDetail d){cancelUpload();v.destroy();web=null;new AlertDialog.Builder(MainActivity.this).setTitle("Page stopped").setMessage("Android stopped the web renderer. Reopen Gemini to continue; an unfinished upload may need to be selected again.").setPositiveButton("Reopen",(a,b)->isolated()).setNegativeButton("Setup",(a,b)->setup()).show();return true;}
@@ -393,37 +388,25 @@ public class MainActivity extends Activity {
   android.util.Log.i("GeminiUpload","result code="+code+" ok="+(result==RESULT_OK)+" count="+selected.size()+" callback="+(cb!=null));
   if(cb==null){if(!selected.isEmpty())toast("Page was recreated. Please attach your selection again.");return;}
   if(selected.isEmpty()){cb.onReceiveValue(null);return;}
-  preparingAttachment=true;
+  preparingAttachment=true;final Operation operation=new Operation();attachmentOperation=operation;preparingCallback=cb;final WebView owner=web;
   new Thread(()->{
-   ArrayList<Uri> safe=new ArrayList<>();ArrayList<File> copies=new ArrayList<>();boolean failed=false;
-   try{
-    for(Uri u:selected){
-     if(!"content".equals(u.getScheme()))throw new IOException("Unsupported source");
-     String mime=getContentResolver().getType(u);
-     String ext=mime==null?null:MimeTypeMap.getSingleton().getExtensionFromMimeType(mime);
-     if(ext==null || !ext.matches("[A-Za-z0-9]{1,12}"))ext="bin";
-     File copy=File.createTempFile("upload_","."+ext,getCacheDir());copies.add(copy);
-     try(InputStream in=getContentResolver().openInputStream(u);OutputStream out=new FileOutputStream(copy)){
-      if(in==null)throw new IOException("Unreadable source");byte[] buffer=new byte[65536];long size=0;int count;
-      while((count=in.read(buffer))!=-1){size+=count;if(size>100L*1024*1024)throw new IOException("File exceeds 100 MB");out.write(buffer,0,count);}
-      if(size==0)throw new IOException("Empty file");
-     }
-     safe.add(Uri.parse("content://com.geminipocket.capture/"+copy.getName()));
-    }
-   }catch(Exception e){failed=true;android.util.Log.w("GeminiUpload","Cannot prepare selected attachment",e);for(File f:copies)f.delete();safe.clear();}
+   ArrayList<Uri> safe=new ArrayList<>();boolean failed=false;
+   try{safe.addAll(AttachmentPreparer.prepare(getContentResolver(),getCacheDir(),selected,()->!operation.active()));}
+   catch(IOException e){failed=true;android.util.Log.w("GeminiUpload","Cannot prepare selected attachment",e);}
    if(cameraOutput!=null && !failed && "com.geminipocket.capture".equals(cameraOutput.getAuthority()))new File(getCacheDir(),cameraOutput.getLastPathSegment()).delete();
    final boolean error=failed;
    runOnUiThread(()->{
-    preparingAttachment=false;
+    boolean deliver=operation.active()&&owner==web&&!isDestroyed();
+    if(attachmentOperation==operation){preparingAttachment=false;attachmentOperation=null;preparingCallback=null;}
     if(cameraOutput!=null)revokeUriPermission(cameraOutput,Intent.FLAG_GRANT_WRITE_URI_PERMISSION|Intent.FLAG_GRANT_READ_URI_PERMISSION);
-    if(isDestroyed()){cb.onReceiveValue(null);return;}
+    if(!deliver){for(Uri uri:safe)new File(getCacheDir(),uri.getLastPathSegment()).delete();if(operation.finish())cb.onReceiveValue(null);return;}
     if(error)toast("Could not read the attachment (maximum 100 MB). Please select it again.");
-    cb.onReceiveValue(safe.isEmpty()?null:safe.toArray(new Uri[0]));
+    if(operation.finish())cb.onReceiveValue(safe.isEmpty()?null:safe.toArray(new Uri[0]));
     // Gemini renders its own attachment state; successful handoff is intentionally silent.
    });
   },"GeminiUploadCopy").start();
  }
- private void cancelUpload(){ValueCallback<Uri[]> cb=upload;upload=null;if(cb!=null)cb.onReceiveValue(null);}
+ private void cancelUpload(){if(attachmentOperation!=null){attachmentOperation.cancel();if(attachmentOperation.finish()&&preparingCallback!=null)preparingCallback.onReceiveValue(null);attachmentOperation=null;preparingCallback=null;preparingAttachment=false;}ValueCallback<Uri[]> cb=upload;upload=null;if(cb!=null)cb.onReceiveValue(null);}
  @Override protected void onSaveInstanceState(Bundle out){super.onSaveInstanceState(out);out.putBoolean("pageVisible",pageVisible);if(web!=null)web.saveState(out);if(captureUri!=null)out.putString("capture",captureUri.toString());}
  @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);}
  @Override protected void onStop(){super.onStop();CookieManager.getInstance().flush();}
