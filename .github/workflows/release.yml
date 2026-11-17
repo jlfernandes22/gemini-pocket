@@ -2,10 +2,23 @@ name: Build and release
 on:
   push:
     branches: [main]
+    paths:
+      - 'app/src/main/**'
+      - 'app/build.gradle.kts'
+      - 'build.gradle.kts'
+      - 'settings.gradle.kts'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'gradlew'
+      - 'gradlew.bat'
+      - 'version.properties'
+      - 'build-apk.sh'
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   release:
+    if: github.ref == 'refs/heads/main'
     permissions:
       contents: write
     runs-on: ubuntu-24.04

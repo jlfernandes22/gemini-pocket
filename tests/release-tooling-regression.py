@@ -15,3 +15,7 @@ print('PASS: wrapper checksum, pinned Actions and release-certificate guards')
 
 assert "--latest=false" in release and "group: promote-latest-release" in release
 assert "sort -t- -k2,2n" in release
+assert "paths:" in release and "'app/src/main/**'" in release
+assert 'workflow_dispatch:' in release and "if: github.ref == 'refs/heads/main'" in release
+trigger=release.split('permissions:',1)[0]
+assert 'README' not in trigger and 'docs/' not in trigger and 'tests/' not in trigger
