@@ -45,6 +45,26 @@ public class UrlPolicyTest {
   check(UrlPolicy.navigation("https://accounts.google.co.uk/accounts/%53etSID",true),false,"Encoded path not allowed");
   check(UrlPolicy.navigation("https://accounts.google.co.uk:444/accounts/SetSID",true),false,"Regional nonstandard port");
   check(UrlPolicy.navigation("https://user@accounts.google.co.uk/accounts/SetSID",true),false,"Regional userinfo");
+  String sandbox="https://00000000000000000000000000000000000000000000000000-h994388388.scf.usercontent.goog";
+  String shim=sandbox+"/gemini-code-immersive/shim.html?origin=https%3A%2F%2Fgemini.google.com";
+  String preview="blob:"+sandbox+"/12345678-1234-1234-1234-123456789abc#page=1";
+  for(boolean restricted:new boolean[]{true,false}){
+   check(UrlPolicy.frameNavigation(shim,restricted),true,"Embedded document shim");
+   check(UrlPolicy.frameNavigation(preview,restricted),true,"Same-sandbox preview blob");
+   check(UrlPolicy.frameNavigation("blob:https://evil.org/12345678-1234-1234-1234-123456789abc",restricted),false,"Untrusted preview blob");
+   check(UrlPolicy.frameNavigation("blob:"+sandbox+":444/12345678-1234-1234-1234-123456789abc",restricted),false,"Preview blob nonstandard port");
+   check(UrlPolicy.frameNavigation(preview.replace(".goog/",".goog.evil.org/"),restricted),false,"Preview blob deceptive suffix");
+  }
+  check(UrlPolicy.resource(shim,true),true,"Restricted requests can fetch the shim");
+  check(UrlPolicy.resource(preview,true),true,"Preview blob can load when intercepted");
+  check(UrlPolicy.navigation(shim,true),false,"Shim is not allowed as top-level restricted page");
+  check(UrlPolicy.navigation(preview,false),false,"Blob remains blocked as a top-level page");
+  check(UrlPolicy.frameNavigation(shim.replace("gemini-code-immersive","test-product"),true),false,"Other sandbox product stays blocked");
+  check(UrlPolicy.frameNavigation(shim.replace(".goog/",".goog.evil.org/"),true),false,"Deceptive preview host stays blocked");
+  check(UrlPolicy.frameNavigation(shim.replace("shim.html","%73him.html"),true),false,"Encoded shim path stays blocked");
+  check(UrlPolicy.frameNavigation(shim.replace("0000-h","0000.extra-h"),true),false,"Unexpected sandbox host structure stays blocked");
+  check(UrlPolicy.frameNavigation("https://www.gstatic.com/a.js",true),false,"Resource allowlist does not become frame navigation allowlist");
+  check(UrlPolicy.frameNavigation("https://example.com/",false),true,"Open HTTPS mode still permits HTTPS frames");
   System.out.println("PASS: "+n+" policy assertions");
  }
 }

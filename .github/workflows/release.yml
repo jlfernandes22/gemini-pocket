@@ -50,7 +50,8 @@ jobs:
           chmod 600 "$RUNNER_TEMP/release.jks"
       - name: Allocate update-compatible build number
         id: version
-        run: echo "number=$((GITHUB_RUN_NUMBER + 100))" >> "$GITHUB_OUTPUT"
+        # Keep public APKs newer than signed local test builds through versionCode 300118.
+        run: echo "number=$((GITHUB_RUN_NUMBER + 110))" >> "$GITHUB_OUTPUT"
       - name: Build signed APK
         env:
           RELEASE_KEYSTORE: ${{ runner.temp }}/release.jks

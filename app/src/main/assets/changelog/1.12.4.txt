@@ -1,0 +1,11 @@
+Personalize loading
+Choose Gemini Blue, your Android wallpaper colors, Teal, Violet, or Amber. The Browsing controls icon follows the same accent. Try the animated straight bar or squiggle in the live preview, and choose a morphing shape, chasing arc, or no startup figure independently.
+
+Respect system motion
+With Android animations off, loading indicators use a straight line or smooth arc instead of a frozen wave.
+
+Preview generated PDFs
+Gemini’s embedded document previews can load without changing top-level browsing restrictions.
+
+Read release notes offline
+See what changed after a public update, or revisit these notes any time from About & updates.

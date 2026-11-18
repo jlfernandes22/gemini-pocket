@@ -42,6 +42,7 @@ public class MainActivity extends Activity {
  private boolean dark(){return (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)==android.content.res.Configuration.UI_MODE_NIGHT_YES;}
  @Override public void onCreate(Bundle state){
   super.onCreate(state);new Thread(()->TempPhotos.clean(getCacheDir(),System.currentTimeMillis()),"TempPhotoCleanup").start();prefs=getSharedPreferences("settings",MODE_PRIVATE);restore=state;
+  recordInstalledVersion();
   if(state!=null){String c=state.getString("capture");if(c!=null)captureUri=Uri.parse(c);}
   getWindow().setStatusBarColor(Color.TRANSPARENT);getWindow().setNavigationBarColor(Color.TRANSPARENT);
   if(Build.VERSION.SDK_INT>=30){getWindow().setDecorFitsSystemWindows(false);getWindow().setNavigationBarContrastEnforced(false);}else getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE|View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN|View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
@@ -70,7 +71,7 @@ public class MainActivity extends Activity {
   sheet.backAction(()->settings());ImageButton back=new ImageButton(this);back.setImageResource(R.drawable.ic_back);back.setColorFilter(dark()?0xFFD7E2FF:0xFF304D8C);back.setBackgroundColor(Color.TRANSPARENT);back.setContentDescription("Back to browsing controls");content.addView(back,0,new LinearLayout.LayoutParams(pad(48),pad(48)));back.setOnClickListener(v->sheet.onBackPressed());
  }
  private Dialog themedSheet(String title,String subtitle,java.util.function.BiConsumer<LinearLayout,Dialog> contents){
-  AnimatedSheetDialog sheet=new AnimatedSheetDialog(this);LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(16),pad(12),pad(16),pad(24));c.addView(text(title,24));if(subtitle!=null)c.addView(text(subtitle,14));contents.accept(c,sheet);if(title.equals("Connection & browsing")||title.equals("Gemini Pocket")||title.equals("Reset device access?"))addSheetBack(c,sheet);mountSheet(sheet,c);return sheet;
+  AnimatedSheetDialog sheet=new AnimatedSheetDialog(this);LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(16),pad(12),pad(16),pad(24));c.addView(text(title,24));if(subtitle!=null)c.addView(text(subtitle,14));contents.accept(c,sheet);if(title.equals("Connection & browsing")||title.equals("Gemini Pocket")||title.equals("Reset device access?")||title.equals("Appearance"))addSheetBack(c,sheet);mountSheet(sheet,c);return sheet;
  }
  private void chooseBrowser(){
   Intent service=new Intent("android.support.customtabs.action.CustomTabsService");List<ResolveInfo> found=getPackageManager().queryIntentServices(service,0);ArrayList<String> packages=new ArrayList<>(),labels=new ArrayList<>();
@@ -119,7 +120,9 @@ public class MainActivity extends Activity {
    LinearLayout quick=new LinearLayout(this);c.addView(quick);LinearLayout reloadBox=new LinearLayout(this),homeBox=new LinearLayout(this);quick.addView(reloadBox,new LinearLayout.LayoutParams(0,-2,1));quick.addView(homeBox,new LinearLayout.LayoutParams(0,-2,1));action(reloadBox,"Reload",()->{sheet.dismiss();navigateWithLoading(false);});action(homeBox,"Home",()->{sheet.dismiss();navigateWithLoading(true);});
    c.addView(text("CONNECTION",12));settingsRow(c,"Connection & browsing","Session and permitted websites",()->{sheet.dismiss();connectionControls();});
    c.addView(text("PRIVACY & PERMISSIONS",12));settingsRow(c,"Privacy & storage","Attachments, website cache and session",()->{sheet.dismiss();privacyControls();});settingsRow(c,"Website device access","Reset saved camera and microphone choices",()->{sheet.dismiss();themedSheet("Reset device access?","Gemini will ask for camera and microphone access again. This reloads the page.",(content,confirm)->{action(content,"Reset permissions",()->{prefs.edit().remove("consent.gemini.google.com.audio").remove("consent.gemini.google.com.video").apply();if(pendingPermission!=null)denyPermission(pendingPermission);confirm.dismiss();if(web!=null)web.reload();});action(content,"Cancel",()->confirm.onBackPressed());});});
-   c.addView(text("APP",12));settingsRow(c,"About & updates","Version, updates and project links",()->{sheet.dismiss();about();});
+   c.addView(text("APP",12));
+   settingsRow(c,"Appearance","Loading colors, style and motion",()->{sheet.dismiss();appearance();});
+   settingsRow(c,"About & updates","Version, updates and project links",()->{sheet.dismiss();about();});
   });
  }
  private void connectionControls(){
@@ -156,12 +159,93 @@ public class MainActivity extends Activity {
    });action(content,"Cancel",()->confirm.dismiss());});
  }
  private boolean preparingAttachment;
+ private void appearance(){
+  themedSheet("Appearance","Colors apply to loading indicators and the Browsing controls icon.",(content,sheet)->{
+   LinearLayout preview=surfaceCard(content);
+   preview.setGravity(Gravity.CENTER_HORIZONTAL);
+   TextView label=text("Live preview",14);preview.addView(label);
+   ExpressiveLoader shape=new ExpressiveLoader(this);
+   preview.addView(shape,new LinearLayout.LayoutParams(pad(64),pad(64)));
+   WavyLoadingBar bar=new WavyLoadingBar(this);
+   preview.addView(bar,new LinearLayout.LayoutParams(pad(168),pad(24)));
+   Runnable refresh=()->{
+    LoaderAppearance value=LoaderAppearance.read(this);
+    shape.applyAppearance(value);bar.applyAppearance(value);updateShield();
+    if(launchCover!=null)for(int index=0;index<launchCover.getChildCount();index++){
+     View child=launchCover.getChildAt(index);
+     if(child instanceof ExpressiveLoader)((ExpressiveLoader)child).applyAppearance(value);
+     if(child instanceof WavyLoadingBar)((WavyLoadingBar)child).applyAppearance(value);
+    }
+   };
+   content.addView(text("Loading color",18));
+   String[] keys={"blue","system","teal","violet","amber"};
+   String[] labels={"Gemini Blue",Build.VERSION.SDK_INT>=31?"Match system wallpaper":"Match system wallpaper (Gemini Blue on this device)","Teal","Violet","Amber"};
+   RadioGroup colors=new RadioGroup(this);
+   int defaultColor=View.NO_ID, selected=View.NO_ID;
+   String current=prefs.getString(LoaderAppearance.COLOR,"blue");
+   for(int index=0;index<keys.length;index++){
+    RadioButton option=new RadioButton(this);option.setId(View.generateViewId());option.setText(labels[index]);option.setMinHeight(pad(48));option.setTag(keys[index]);colors.addView(option);
+    if(index==0)defaultColor=option.getId();
+    if(keys[index].equals(current))selected=option.getId();
+   }
+   final int blueId=defaultColor;
+   colors.check(selected==View.NO_ID?blueId:selected);
+   content.addView(colors);
+   colors.setOnCheckedChangeListener((group,id)->{
+    RadioButton option=group.findViewById(id);
+    if(option==null)return;
+    prefs.edit().putString(LoaderAppearance.COLOR,(String)option.getTag()).apply();refresh.run();
+   });
+   content.addView(text("Indicator style",18));
+   RadioGroup styles=new RadioGroup(this);
+   RadioButton squiggly=new RadioButton(this),straight=new RadioButton(this);
+   squiggly.setId(View.generateViewId());squiggly.setText("Squiggly");squiggly.setMinHeight(pad(48));styles.addView(squiggly);
+   straight.setId(View.generateViewId());straight.setText("Straight");straight.setMinHeight(pad(48));styles.addView(straight);
+   styles.check(prefs.getBoolean(LoaderAppearance.WAVE,true)?squiggly.getId():straight.getId());content.addView(styles);
+   styles.setOnCheckedChangeListener((group,id)->{prefs.edit().putBoolean(LoaderAppearance.WAVE,id==squiggly.getId()).apply();refresh.run();});
+   content.addView(text("When Android disables animations, indicators use a straight line or smooth arc.",13));
+   content.addView(text("Startup indicator",18));
+   RadioGroup startup=new RadioGroup(this);
+   String[] startupKeys={"morph","arc","hidden"};
+   String[] startupLabels={"Morphing shape","Chasing arc","Hidden"};
+   AppearancePolicy.StartupStyle currentStartup=LoaderAppearance.startupStyle(prefs);
+   int[] startupIds=new int[startupKeys.length];
+   int selectedStartup=View.NO_ID;
+   for(int index=0;index<startupKeys.length;index++){
+    RadioButton option=new RadioButton(this);option.setId(View.generateViewId());
+    option.setText(startupLabels[index]);option.setMinHeight(pad(48));option.setTag(startupKeys[index]);
+    startupIds[index]=option.getId();startup.addView(option);
+    if(AppearancePolicy.startupStyle(startupKeys[index],true)==currentStartup)selectedStartup=option.getId();
+   }
+   startup.check(selectedStartup);content.addView(startup);
+   startup.setOnCheckedChangeListener((group,id)->{
+    RadioButton option=group.findViewById(id);
+    if(option!=null){prefs.edit().putString(LoaderAppearance.STARTUP,(String)option.getTag()).apply();refresh.run();}
+   });
+   action(content,"Reset appearance",()->{
+    colors.check(blueId);styles.check(squiggly.getId());startup.check(startupIds[0]);
+    LoaderAppearance.reset(prefs);refresh.run();
+   });
+   refresh.run();
+  });
+ }
  private void about(){
   String version="Unknown";try{version=getPackageManager().getPackageInfo(getPackageName(),0).versionName;}catch(Exception ignored){}
   final String installed=version;themedSheet("Gemini Pocket",installed+(installed.contains("dev")?" · Development":""),(content,sheet)->{
    content.addView(text("A lightweight, unofficial home for Gemini. Not affiliated with Google.",15));
    Switch toggle=new Switch(this);toggle.setText("Automatically check for updates");toggle.setMinHeight(pad(56));toggle.setChecked(prefs.getBoolean("autoUpdates",false));toggle.setOnCheckedChangeListener((v,on)->prefs.edit().putBoolean("autoUpdates",on).apply());content.addView(toggle);content.addView(text("Daily launch checks only. No automatic APK downloads.",12));
    action(content,"Check for updates",()->{sheet.dismiss();checkUpdate(true);});
+   settingsRow(content,"What’s new","Read notes for the installed build",()->{
+    sheet.setOnDismissListener(dialog->showChangelog(false));sheet.dismiss();
+   });
+   Switch releaseNotes=new Switch(this);releaseNotes.setText("Show what’s new after updates");releaseNotes.setMinHeight(pad(56));
+   releaseNotes.setChecked(prefs.getBoolean(SHOW_RELEASE_NOTES,true));
+   releaseNotes.setOnCheckedChangeListener((button,on)->{
+    android.content.SharedPreferences.Editor edit=prefs.edit().putBoolean(SHOW_RELEASE_NOTES,on);
+    if(!on)edit.remove(PENDING_RELEASE_NOTES);
+    edit.apply();
+   });
+   content.addView(releaseNotes);
    action(content,"GitHub repository",()->openAppLink("https://github.com/jlfernandes22/gemini-pocket"));
    action(content,"Releases",()->openAppLink("https://github.com/jlfernandes22/gemini-pocket/releases"));
    action(content,"Report an issue",()->openAppLink("https://github.com/jlfernandes22/gemini-pocket/issues"));
@@ -169,6 +253,62 @@ public class MainActivity extends Activity {
    action(content,"MIT license",()->openAppLink("https://github.com/jlfernandes22/gemini-pocket/blob/main/LICENSE"));
    action(content,"Inspired by geminiAssist",()->openAppLink("https://github.com/AcideFluorhydrique/geminiAssist"));
   });
+ }
+ private static final String SHOW_RELEASE_NOTES="showReleaseNotes";
+ private static final String PENDING_RELEASE_NOTES="pendingReleaseNotes";
+ private static final String LAST_OPENED_VERSION="lastOpenedVersion";
+ private long installedCode;
+ private String installedName;
+ private Dialog releaseNotesSheet;
+
+ private void recordInstalledVersion(){
+  try{
+   PackageInfo info=getPackageManager().getPackageInfo(getPackageName(),0);
+   installedCode=UpdateClient.versionCode(info);installedName=info.versionName;
+   long previous=prefs.getLong(LAST_OPENED_VERSION,0);
+   boolean upgraded=previous>0 || info.lastUpdateTime>info.firstInstallTime;
+   boolean enabled=prefs.getBoolean(SHOW_RELEASE_NOTES,true);
+   android.content.SharedPreferences.Editor edit=prefs.edit().putLong(LAST_OPENED_VERSION,Math.max(previous,installedCode));
+   if(ChangelogPolicy.shouldQueue(installedName,installedCode,previous,upgraded,enabled))edit.putLong(PENDING_RELEASE_NOTES,installedCode);
+   else if(!enabled || prefs.getLong(PENDING_RELEASE_NOTES,0)!=installedCode)edit.remove(PENDING_RELEASE_NOTES);
+   edit.apply();
+  }catch(PackageManager.NameNotFoundException ignored){}
+ }
+ private boolean hasPendingChangelog(){
+  return installedCode>0 && prefs.getBoolean(SHOW_RELEASE_NOTES,true)
+      && prefs.getLong(PENDING_RELEASE_NOTES,0)==installedCode;
+ }
+ private void maybeShowChangelog(){
+  if(isFinishing()||isDestroyed()||!hasWindowFocus()||!prefs.contains("mode")||launchCover!=null||!hasPendingChangelog())return;
+  if(releaseNotesSheet==null || !releaseNotesSheet.isShowing())showChangelog(true);
+ }
+ @Override public void onWindowFocusChanged(boolean focused){
+  super.onWindowFocusChanged(focused);
+  if(focused && prefs!=null)getWindow().getDecorView().post(this::maybeShowChangelog);
+ }
+ private void showChangelog(boolean automatic){
+  if(isFinishing()||isDestroyed())return;
+  String version=ChangelogPolicy.notesVersion(installedName);
+  String notes=null;
+  if(version!=null){
+   try(InputStream in=getAssets().open("changelog/"+version+".txt");ByteArrayOutputStream out=new ByteArrayOutputStream()){
+    byte[] buffer=new byte[2048];int count;
+    while((count=in.read(buffer))!=-1)out.write(buffer,0,count);
+    notes=new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8).trim();
+   }catch(IOException ignored){}
+  }
+  boolean hasNotes=notes!=null && !notes.isEmpty();
+  if(automatic && !hasNotes){prefs.edit().remove(PENDING_RELEASE_NOTES).apply();return;}
+  final String summary=hasNotes?notes:"No release notes are bundled for this build. See GitHub for the release history.";
+  releaseNotesSheet=themedSheet("What’s new",installedName,(content,sheet)->{
+   content.addView(text(summary,15));
+   action(content,"Release history",()->openAppLink("https://github.com/jlfernandes22/gemini-pocket/releases"));
+   action(content,automatic?"Got it":"Back to About",()->{
+    if(!automatic)sheet.setOnDismissListener(dialog->about());
+    sheet.dismiss();
+   });
+  });
+  if(automatic)prefs.edit().remove(PENDING_RELEASE_NOTES).apply();
  }
  private void openAppLink(String url){try{startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(url)));}catch(ActivityNotFoundException e){toast("No browser available");}}
  private boolean checkingUpdate,downloadingUpdate,awaitingInstallPermission;
@@ -223,13 +363,14 @@ public class MainActivity extends Activity {
    Intent i=new Intent(Intent.ACTION_VIEW);i.setDataAndType(Uri.parse("content://com.geminipocket.updates/update.apk"),"application/vnd.android.package-archive");i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);startActivity(i);
   }catch(Exception e){toast("Could not install update: "+e.getMessage());}
  }
- @Override protected void onResume(){super.onResume();if(awaitingInstallPermission){awaitingInstallPermission=false;if(getPackageManager().canRequestPackageInstalls())installVerifiedUpdate();}if(prefs!=null&&prefs.getBoolean("autoUpdates",false)&&System.currentTimeMillis()-prefs.getLong("lastUpdateCheck",0)>24L*60*60*1000)checkUpdate(false);}
- private void updateShield(){if(shield!=null){shield.setContentDescription("Browsing controls: "+(restricted()?"restricted":"open HTTPS"));shield.setAlpha(restricted()?1f:.65f);}}
+ @Override protected void onResume(){super.onResume();if(awaitingInstallPermission){awaitingInstallPermission=false;if(getPackageManager().canRequestPackageInstalls())installVerifiedUpdate();}if(prefs!=null&&!hasPendingChangelog()&&prefs.getBoolean("autoUpdates",false)&&System.currentTimeMillis()-prefs.getLong("lastUpdateCheck",0)>24L*60*60*1000)checkUpdate(false);}
+ private void updateShield(){if(shield!=null){shield.setColorFilter(LoaderAppearance.read(this).accent);shield.setContentDescription("Browsing controls: "+(restricted()?"restricted":"open HTTPS"));shield.setAlpha(restricted()?1f:.65f);}}
  private void showLoadingOverlay(FrameLayout stage){
   if(launchCover!=null){launchCover.animate().cancel();if(launchCover.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)launchCover.getParent()).removeView(launchCover);}
   pageVisible=false;
   launchCover=new LinearLayout(this);launchCover.setOrientation(LinearLayout.VERTICAL);launchCover.setGravity(Gravity.CENTER);launchCover.setBackgroundColor(dark()?Color.BLACK:Color.WHITE);
-  ExpressiveLoader loader=new ExpressiveLoader(this);launchCover.addView(loader,new LinearLayout.LayoutParams(pad(96),pad(96)));
+  ExpressiveLoader loader=new ExpressiveLoader(this);
+  launchCover.addView(loader,new LinearLayout.LayoutParams(pad(96),pad(96)));
   loadingStage=text("Connecting to Gemini",18);loadingStage.setGravity(Gravity.CENTER);loadingStage.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);launchCover.addView(loadingStage);
   WavyLoadingBar wave=new WavyLoadingBar(this);LinearLayout.LayoutParams waveSize=new LinearLayout.LayoutParams(pad(180),pad(24));waveSize.setMargins(0,pad(6),0,pad(8));launchCover.addView(wave,waveSize);
   loadingHint=text("Preparing your chat",14);loadingHint.setGravity(Gravity.CENTER);loadingHint.setAlpha(.7f);launchCover.addView(loadingHint);
@@ -245,7 +386,7 @@ public class MainActivity extends Activity {
   FrameLayout stage=new FrameLayout(this);root.addView(stage,new LinearLayout.LayoutParams(-1,0,1));
   web=new WebView(this);web.setBackgroundColor(dark()?Color.BLACK:Color.WHITE);stage.addView(web,new FrameLayout.LayoutParams(-1,-1));
   showLoadingOverlay(stage);
-  shield=new ImageButton(this);shield.setImageResource(R.drawable.ic_shield);shield.setColorFilter(dark()?Color.rgb(210,220,240):Color.rgb(65,80,110));shield.setPadding(pad(12),pad(12),pad(12),pad(12));android.graphics.drawable.GradientDrawable buttonBg=new android.graphics.drawable.GradientDrawable();buttonBg.setColor(dark()?0xDD24262B:0xDDEEF2FA);buttonBg.setCornerRadius(pad(22));shield.setBackground(buttonBg);
+  shield=new ImageButton(this);shield.setImageResource(R.drawable.ic_shield);shield.setPadding(pad(12),pad(12),pad(12),pad(12));android.graphics.drawable.GradientDrawable buttonBg=new android.graphics.drawable.GradientDrawable();buttonBg.setColor(dark()?0xDD24262B:0xDDEEF2FA);buttonBg.setCornerRadius(pad(22));shield.setBackground(buttonBg);
   FrameLayout.LayoutParams shieldLayout=new FrameLayout.LayoutParams(pad(44),pad(44),Gravity.TOP|Gravity.END);shieldLayout.topMargin=pad(58);shieldLayout.rightMargin=pad(8);stage.addView(shield,shieldLayout);updateShield();shield.setOnClickListener(v->settings());
   WebSettings s=web.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setAllowFileAccess(false);s.setAllowContentAccess(true);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);s.setSupportMultipleWindows(true);s.setJavaScriptCanOpenWindowsAutomatically(false);s.setMediaPlaybackRequiresUserGesture(true);s.setSafeBrowsingEnabled(true);
   CookieManager.getInstance().setAcceptCookie(true);CookieManager.getInstance().setAcceptThirdPartyCookies(web,true);
@@ -280,7 +421,7 @@ public class MainActivity extends Activity {
   else if(!UrlPolicy.navigation(web.getUrl(),restricted()))web.loadUrl(HOME);
  }
  private void closePopup(WebView v){if(popups.remove(v))v.destroy();}
- private void revealPage(){if(pageVisible || launchCover==null)return;pageVisible=true;LinearLayout cover=launchCover;launchCover=null;if(android.animation.ValueAnimator.areAnimatorsEnabled())cover.animate().alpha(0).setDuration(180).withEndAction(()->{if(cover.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)cover.getParent()).removeView(cover);}).start();else if(cover.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)cover.getParent()).removeView(cover);}
+ private void revealPage(){if(pageVisible || launchCover==null)return;pageVisible=true;LinearLayout cover=launchCover;launchCover=null;getWindow().getDecorView().post(this::maybeShowChangelog);if(android.animation.ValueAnimator.areAnimatorsEnabled())cover.animate().alpha(0).setDuration(180).withEndAction(()->{if(cover.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)cover.getParent()).removeView(cover);}).start();else if(cover.getParent() instanceof android.view.ViewGroup)((android.view.ViewGroup)cover.getParent()).removeView(cover);}
  private void launchError(String message){if(!pageVisible && launchCover!=null){launchAttempt++;loadingStage.setText("Could not open Gemini");loadingHint.setText(message);retryLaunch.setVisibility(View.VISIBLE);}else toast(message);}
  private void startLaunchAttempt(){
   final int token=++launchAttempt;if(openIncomplete!=null)openIncomplete.setVisibility(View.GONE);if(retryLaunch!=null)retryLaunch.setVisibility(View.GONE);if(loadingStage!=null)loadingStage.setText("Connecting to Gemini");if(loadingHint!=null)loadingHint.setText("Preparing your chat");
@@ -311,7 +452,12 @@ public class MainActivity extends Activity {
   @Override public void onPageStarted(WebView v,String u,android.graphics.Bitmap icon){suppressPromotion(v,u);}
   @Override public void onPageCommitVisible(WebView v,String u){suppressPromotion(v,u);awaitGeminiReady(v,u,0,launchAttempt);}
 
-  @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){if(!UrlPolicy.navigation(r.getUrl().toString(),restricted())){if(r.isForMainFrame())external(r.getUrl().toString());return true;}return false;}
+  @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){
+   String url=r.getUrl().toString();
+   if(!r.isForMainFrame())return !UrlPolicy.frameNavigation(url,restricted());
+   if(UrlPolicy.navigation(url,restricted()))return false;
+   external(url);return true;
+  }
   @Override public WebResourceResponse shouldInterceptRequest(WebView v,WebResourceRequest r){
    String u=r.getUrl().toString();
    if(!r.isForMainFrame() && "content".equals(r.getUrl().getScheme()) && "com.geminipocket.capture".equals(r.getUrl().getAuthority()) && UploadPolicy.validName(r.getUrl().getLastPathSegment()))return null;
