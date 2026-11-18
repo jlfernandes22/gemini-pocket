@@ -56,7 +56,20 @@ public class MainActivity extends Activity {
   });backdrop.requestApplyInsets();
  }
  private TextView text(String s,int size){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(dark()?Color.rgb(232,234,243):Color.rgb(25,31,50));t.setPadding(pad(20),pad(12),pad(20),pad(12));return t;}
- private void action(LinearLayout parent,String title,Runnable r){Button b=new Button(this);b.setText(title);b.setAllCaps(false);b.setTextSize(15);b.setMinHeight(pad(48));boolean primary="Apply".equals(title);b.setTextColor(primary?(dark()?0xFF102047:Color.WHITE):(dark()?0xFFD7E2FF:0xFF304D8C));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(primary?(dark()?0xFFB8CBFF:0xFF3459CF):(dark()?0xFF2B303A:0xFFE3EAF7));bg.setCornerRadius(pad(24));b.setBackground(bg);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,pad(48));lp.setMargins(pad(8),pad(5),pad(8),pad(5));parent.addView(b,lp);b.setOnClickListener(v->r.run());}
+ private void action(LinearLayout parent,String title,Runnable r){action(parent,title,"Apply".equals(title),r);}
+ private void action(LinearLayout parent,String title,boolean primary,Runnable r){Button b=new Button(this);b.setText(title);b.setAllCaps(false);b.setTextSize(15);b.setMinHeight(pad(48));styleAction(b,primary,24);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(pad(8),pad(5),pad(8),pad(5));parent.addView(b,lp);b.setOnClickListener(v->r.run());}
+ private void styleAction(Button button,boolean primary,int radius){
+  int accent=LoaderAppearance.read(this).accent;
+  int fill=primary?accent:AppearancePolicy.tonalSurface(accent,dark());
+  button.setTextColor(AppearancePolicy.onAccent(fill));
+  button.setBackground(accentBackground(fill,radius));
+ }
+ private android.graphics.drawable.RippleDrawable accentBackground(int fill,int radius){
+  android.graphics.drawable.GradientDrawable background=new android.graphics.drawable.GradientDrawable();
+  background.setColor(fill);background.setCornerRadius(pad(radius));
+  int ripple=0x22000000|(AppearancePolicy.onAccent(fill)&0x00FFFFFF);
+  return new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(ripple),background,null);
+ }
  private LinearLayout surfaceCard(LinearLayout parent){LinearLayout c=new LinearLayout(this);c.setOrientation(LinearLayout.VERTICAL);c.setPadding(pad(12),pad(12),pad(12),pad(16));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?0xFF1E222B:0xFFEEF2FA);bg.setCornerRadius(pad(28));c.setBackground(bg);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(pad(8),pad(10),pad(8),pad(10));parent.addView(c,lp);return c;}
  private void setup(){
   base();ScrollView scroll=new ScrollView(this);LinearLayout content=new LinearLayout(this);content.setPadding(pad(12),pad(32),pad(12),pad(24));content.setOrientation(LinearLayout.VERTICAL);scroll.addView(content);root.addView(scroll);
@@ -113,7 +126,7 @@ public class MainActivity extends Activity {
  }
  private void confirmModeSelection(){previousScreen=null;previousRoot=null;destroyWeb();}
  private void settingsRow(LinearLayout parent,String title,String description,Runnable click){
-  LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(pad(16),pad(12),pad(16),pad(12));row.setMinimumHeight(pad(64));android.graphics.drawable.GradientDrawable bg=new android.graphics.drawable.GradientDrawable();bg.setColor(dark()?0xFF292D36:0xFFE7EDF7);bg.setCornerRadius(pad(20));row.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x22666666),bg,null));TextView name=text(title,16);name.setPadding(0,0,0,pad(4));row.addView(name);TextView detail=text(description,13);detail.setAlpha(.75f);detail.setPadding(0,0,0,0);row.addView(detail);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(pad(8),pad(4),pad(8),pad(4));parent.addView(row,lp);row.setFocusable(true);row.setOnClickListener(v->click.run());
+  LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.VERTICAL);row.setPadding(pad(16),pad(12),pad(16),pad(12));row.setMinimumHeight(pad(64));int tonal=AppearancePolicy.tonalSurface(LoaderAppearance.read(this).accent,dark());row.setBackground(accentBackground(tonal,20));int foreground=AppearancePolicy.onAccent(tonal);TextView name=text(title,16);name.setTextColor(foreground);name.setPadding(0,0,0,pad(4));row.addView(name);TextView detail=text(description,13);detail.setTextColor(foreground);detail.setAlpha(.85f);detail.setPadding(0,0,0,0);row.addView(detail);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.setMargins(pad(8),pad(4),pad(8),pad(4));parent.addView(row,lp);row.setFocusable(true);row.setOnClickListener(v->click.run());
  }
  private void settings(){
   themedSheet("Browsing controls",("browser".equals(prefs.getString("mode","isolated"))?"Browser session":"Isolated app")+" · "+(restricted()?"Restricted":"Open HTTPS"),(c,sheet)->{
@@ -121,7 +134,7 @@ public class MainActivity extends Activity {
    c.addView(text("CONNECTION",12));settingsRow(c,"Connection & browsing","Session and permitted websites",()->{sheet.dismiss();connectionControls();});
    c.addView(text("PRIVACY & PERMISSIONS",12));settingsRow(c,"Privacy & storage","Attachments, website cache and session",()->{sheet.dismiss();privacyControls();});settingsRow(c,"Website device access","Reset saved camera and microphone choices",()->{sheet.dismiss();themedSheet("Reset device access?","Gemini will ask for camera and microphone access again. This reloads the page.",(content,confirm)->{action(content,"Reset permissions",()->{prefs.edit().remove("consent.gemini.google.com.audio").remove("consent.gemini.google.com.video").apply();if(pendingPermission!=null)denyPermission(pendingPermission);confirm.dismiss();if(web!=null)web.reload();});action(content,"Cancel",()->confirm.onBackPressed());});});
    c.addView(text("APP",12));
-   settingsRow(c,"Appearance","Loading colors, style and motion",()->{sheet.dismiss();appearance();});
+   settingsRow(c,"Appearance","Accent colors, loading style and motion",()->{sheet.dismiss();appearance();});
    settingsRow(c,"About & updates","Version, updates and project links",()->{sheet.dismiss();about();});
   });
  }
@@ -160,7 +173,7 @@ public class MainActivity extends Activity {
  }
  private boolean preparingAttachment;
  private void appearance(){
-  themedSheet("Appearance","Colors apply to loading indicators and the Browsing controls icon.",(content,sheet)->{
+  themedSheet("Appearance","Accent color applies to loading indicators and native controls.",(content,sheet)->{
    LinearLayout preview=surfaceCard(content);
    preview.setGravity(Gravity.CENTER_HORIZONTAL);
    TextView label=text("Live preview",14);preview.addView(label);
@@ -171,13 +184,18 @@ public class MainActivity extends Activity {
    Runnable refresh=()->{
     LoaderAppearance value=LoaderAppearance.read(this);
     shape.applyAppearance(value);bar.applyAppearance(value);updateShield();
+    for(int index=0;index<content.getChildCount();index++){
+     View child=content.getChildAt(index);
+     if(child instanceof Button && !(child instanceof CompoundButton))styleAction((Button)child,false,24);
+    }
+    if(launchCover!=null){styleAction(retryLaunch,true,28);styleAction(openIncomplete,false,28);}
     if(launchCover!=null)for(int index=0;index<launchCover.getChildCount();index++){
      View child=launchCover.getChildAt(index);
      if(child instanceof ExpressiveLoader)((ExpressiveLoader)child).applyAppearance(value);
      if(child instanceof WavyLoadingBar)((WavyLoadingBar)child).applyAppearance(value);
     }
    };
-   content.addView(text("Loading color",18));
+   content.addView(text("Accent color",18));
    String[] keys={"blue","system","teal","violet","amber"};
    String[] labels={"Gemini Blue",Build.VERSION.SDK_INT>=31?"Match system wallpaper":"Match system wallpaper (Gemini Blue on this device)","Teal","Violet","Amber"};
    RadioGroup colors=new RadioGroup(this);
@@ -297,16 +315,32 @@ public class MainActivity extends Activity {
     notes=new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8).trim();
    }catch(IOException ignored){}
   }
-  boolean hasNotes=notes!=null && !notes.isEmpty();
-  if(automatic && !hasNotes){prefs.edit().remove(PENDING_RELEASE_NOTES).apply();return;}
-  final String summary=hasNotes?notes:"No release notes are bundled for this build. See GitHub for the release history.";
-  releaseNotesSheet=themedSheet("What’s new",installedName,(content,sheet)->{
-   content.addView(text(summary,15));
-   action(content,"Release history",()->openAppLink("https://github.com/jlfernandes22/gemini-pocket/releases"));
-   action(content,automatic?"Got it":"Back to About",()->{
-    if(!automatic)sheet.setOnDismissListener(dialog->about());
-    sheet.dismiss();
+  List<ChangelogPolicy.Section> sections=ChangelogPolicy.sections(notes);
+  if(automatic && sections.isEmpty()){prefs.edit().remove(PENDING_RELEASE_NOTES).apply();return;}
+  String subtitle=installedName==null?null:"Version "+installedName;
+  releaseNotesSheet=themedSheet("What’s new",subtitle,(content,sheet)->{
+   int tonal=AppearancePolicy.tonalSurface(LoaderAppearance.read(this).accent,dark());
+   int foreground=AppearancePolicy.onAccent(tonal);
+   for(ChangelogPolicy.Section section:sections){
+    LinearLayout card=surfaceCard(content);
+    if(card.getBackground() instanceof android.graphics.drawable.GradientDrawable)
+     ((android.graphics.drawable.GradientDrawable)card.getBackground()).setColor(tonal);
+    TextView heading=text(section.title,17);heading.setPadding(pad(4),0,pad(4),0);
+    heading.setTypeface(heading.getTypeface(),android.graphics.Typeface.BOLD);
+    heading.setTextColor(foreground);
+    if(Build.VERSION.SDK_INT>=28)heading.setAccessibilityHeading(true);
+    card.addView(heading);
+    if(!section.body.isEmpty()){
+     TextView body=text(section.body,15);body.setTextColor(foreground);
+     body.setPadding(pad(4),pad(6),pad(4),0);card.addView(body);
+    }
+   }
+   if(sections.isEmpty())content.addView(text("No release notes are bundled for this build. See GitHub for the release history.",15));
+   if(!automatic)((AnimatedSheetDialog)sheet).backAction(this::about);
+   action(content,automatic?"Got it":"Back to About",true,()->{
+    if(automatic)sheet.dismiss();else sheet.onBackPressed();
    });
+   action(content,"Release history",()->openAppLink("https://github.com/jlfernandes22/gemini-pocket/releases"));
   });
   if(automatic)prefs.edit().remove(PENDING_RELEASE_NOTES).apply();
  }
@@ -374,9 +408,9 @@ public class MainActivity extends Activity {
   loadingStage=text("Connecting to Gemini",18);loadingStage.setGravity(Gravity.CENTER);loadingStage.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);launchCover.addView(loadingStage);
   WavyLoadingBar wave=new WavyLoadingBar(this);LinearLayout.LayoutParams waveSize=new LinearLayout.LayoutParams(pad(180),pad(24));waveSize.setMargins(0,pad(6),0,pad(8));launchCover.addView(wave,waveSize);
   loadingHint=text("Preparing your chat",14);loadingHint.setGravity(Gravity.CENTER);loadingHint.setAlpha(.7f);launchCover.addView(loadingHint);
-  retryLaunch=new Button(this);retryLaunch.setText("↻  Retry");retryLaunch.setAllCaps(false);retryLaunch.setTextSize(15);retryLaunch.setTextColor(dark()?0xFF102047:Color.WHITE);retryLaunch.setPadding(pad(24),0,pad(24),0);android.graphics.drawable.GradientDrawable retryBg=new android.graphics.drawable.GradientDrawable();retryBg.setColor(dark()?0xFFAAC7FF:0xFF3459CF);retryBg.setCornerRadius(pad(28));retryLaunch.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(0x33666666),retryBg,null));retryLaunch.setVisibility(View.GONE);LinearLayout.LayoutParams retrySize=new LinearLayout.LayoutParams(-2,pad(48));retrySize.setMargins(0,pad(16),0,0);launchCover.addView(retryLaunch,retrySize);
+  retryLaunch=new Button(this);retryLaunch.setText("↻  Retry");retryLaunch.setAllCaps(false);retryLaunch.setTextSize(15);retryLaunch.setPadding(pad(24),0,pad(24),0);styleAction(retryLaunch,true,28);retryLaunch.setVisibility(View.GONE);LinearLayout.LayoutParams retrySize=new LinearLayout.LayoutParams(-2,pad(48));retrySize.setMargins(0,pad(16),0,0);launchCover.addView(retryLaunch,retrySize);
   retryLaunch.setOnClickListener(v->{startLaunchAttempt();web.reload();});
-  openIncomplete=new Button(this);openIncomplete.setText("Open page anyway");openIncomplete.setAllCaps(false);openIncomplete.setTextSize(15);openIncomplete.setTextColor(dark()?0xFFD7E2FF:0xFF304D8C);openIncomplete.setPadding(pad(24),0,pad(24),0);openIncomplete.setMinHeight(pad(48));android.graphics.drawable.GradientDrawable secondaryBg=new android.graphics.drawable.GradientDrawable();secondaryBg.setColor(dark()?0xFF2B303A:0xFFE3EAF7);secondaryBg.setCornerRadius(pad(28));openIncomplete.setBackground(new android.graphics.drawable.RippleDrawable(android.content.res.ColorStateList.valueOf(dark()?0x33AAC7FF:0x223459CF),secondaryBg,null));openIncomplete.setVisibility(View.GONE);LinearLayout.LayoutParams secondarySize=new LinearLayout.LayoutParams(-2,pad(48));secondarySize.setMargins(0,pad(12),0,0);launchCover.addView(openIncomplete,secondarySize);openIncomplete.setOnClickListener(v->revealPage());
+  openIncomplete=new Button(this);openIncomplete.setText("Open page anyway");openIncomplete.setAllCaps(false);openIncomplete.setTextSize(15);openIncomplete.setPadding(pad(24),0,pad(24),0);openIncomplete.setMinHeight(pad(48));styleAction(openIncomplete,false,28);openIncomplete.setVisibility(View.GONE);LinearLayout.LayoutParams secondarySize=new LinearLayout.LayoutParams(-2,pad(48));secondarySize.setMargins(0,pad(12),0,0);launchCover.addView(openIncomplete,secondarySize);openIncomplete.setOnClickListener(v->revealPage());
   stage.addView(launchCover,new FrameLayout.LayoutParams(-1,-1));startLaunchAttempt();
   if(shield!=null&&shield.getParent()==stage)shield.bringToFront();
  }

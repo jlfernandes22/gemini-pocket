@@ -19,3 +19,8 @@ assert "paths:" in release and "'app/src/main/**'" in release
 assert 'workflow_dispatch:' in release and "if: github.ref == 'refs/heads/main'" in release
 trigger=release.split('permissions:',1)[0]
 assert 'README' not in trigger and 'docs/' not in trigger and 'tests/' not in trigger
+
+# Release run 13 published build 123; the next run must also update signed local builds.
+offset=int(re.search(r'GITHUB_RUN_NUMBER \+ (\d+)',release)[1])
+assert 300000+14+offset > 300124, 'Next public APK must update signed test build 300124'
+print('PASS: the next public build is newer than signed test build 300124')

@@ -12,6 +12,30 @@ public final class AppearancePolicy {
   return dark ? 0xFFAAC7FF : 0xFF3459CF;
  }
 
+ /** A tinted neutral surface keeps secondary actions distinct from solid accent fills. */
+ public static int tonalSurface(int accent, boolean dark) {
+  int base=dark?0xFF202124:0xFFF6F7FA;
+  float tint=dark?.22f:.16f;
+  return 0xFF000000 | (blendChannel(base,accent,16,tint)<<16)
+      | (blendChannel(base,accent,8,tint)<<8) | blendChannel(base,accent,0,tint);
+ }
+
+ private static int blendChannel(int base,int accent,int shift,float tint) {
+  int from=(base>>>shift)&255,to=(accent>>>shift)&255;
+  return Math.round(from+(to-from)*tint);
+ }
+
+ /** Pick whichever of black and white has the higher WCAG contrast on the fill. */
+ public static int onAccent(int fill) {
+  double luminance=.2126*linearChannel(fill>>>16)+.7152*linearChannel(fill>>>8)+.0722*linearChannel(fill);
+  return luminance>=Math.sqrt(.0525)-.05?0xFF000000:0xFFFFFFFF;
+ }
+
+ private static double linearChannel(int channel) {
+  double value=(channel&255)/255d;
+  return value<=.04045?value/12.92:Math.pow((value+.055)/1.055,2.4);
+ }
+
  public enum StartupStyle { MORPH, ARC, HIDDEN }
 
  public static StartupStyle startupStyle(String choice, boolean legacyShape) {

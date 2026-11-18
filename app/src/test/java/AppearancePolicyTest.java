@@ -49,6 +49,16 @@ public final class AppearancePolicyTest {
   check(AppearancePolicy.lineEnd(.5f,true)-AppearancePolicy.lineStart(.5f,true)>.25f,"Segment visibly stretches");
   for(float phase:new float[]{0,.3f,.7f,1})
    check(AppearancePolicy.lineStart(phase,false)==0 && AppearancePolicy.lineEnd(phase,false)==1,"Reduced-motion line stays full and still");
-  System.out.println("PASS: appearance palette, motion precedence, startup migration, chasing arc and straight-bar motion");
+  check(AppearancePolicy.onAccent(0xFF3459CF)==0xFFFFFFFF,"Dark blue fill uses white text");
+  check(AppearancePolicy.onAccent(0xFFAAC7FF)==0xFF000000,"Light blue fill uses black text");
+  check(AppearancePolicy.onAccent(0xFF767676)==0xFF000000,"Choose the higher-contrast foreground near middle gray");
+  for(boolean dark:new boolean[]{false,true}){
+   int teal=AppearancePolicy.accent("teal",dark,null),amber=AppearancePolicy.accent("amber",dark,null);
+   int tealSurface=AppearancePolicy.tonalSurface(teal,dark),amberSurface=AppearancePolicy.tonalSurface(amber,dark);
+   check(tealSurface!=amberSurface,"Tonal button surface follows selected accent");
+   check(tealSurface!=teal && amberSurface!=amber,"Tonal actions stay distinct from primary actions");
+   check((tealSurface >>> 24)==255,"Tonal surface stays opaque");
+  }
+  System.out.println("PASS: appearance palette, button colors, motion precedence, startup migration, chasing arc and straight-bar motion");
  }
 }

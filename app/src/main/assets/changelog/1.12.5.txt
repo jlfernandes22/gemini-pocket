@@ -1,0 +1,5 @@
+Buttons follow your accent
+The color you choose in Appearance now carries through to browsing controls and other Gemini Pocket buttons. Gemini’s website keeps its own colors.
+
+See what changed at a glance
+What’s new shows your installed version at the top and gives each change its own card. Read the notes offline or revisit them from About Gemini Pocket.
