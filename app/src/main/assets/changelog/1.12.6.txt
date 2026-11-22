@@ -1,0 +1,2 @@
+Save full-size Gemini images
+In Isolated mode, tap Download full size on a generated image, then choose where to save it in Android’s file picker. No broad storage permission is needed.

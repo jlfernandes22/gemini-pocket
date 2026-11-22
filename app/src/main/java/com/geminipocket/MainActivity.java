@@ -20,6 +20,7 @@ public class MainActivity extends Activity {
  private android.content.SharedPreferences prefs;
  private LinearLayout root;
  private WebView web;
+ private ImageDownloads imageDownloads;
  private TextView status;
  private LinearLayout launchCover;
  private boolean pageVisible;
@@ -41,7 +42,7 @@ public class MainActivity extends Activity {
  private boolean restricted(){return prefs.getBoolean("restricted",true);}
  private boolean dark(){return (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)==android.content.res.Configuration.UI_MODE_NIGHT_YES;}
  @Override public void onCreate(Bundle state){
-  super.onCreate(state);new Thread(()->TempPhotos.clean(getCacheDir(),System.currentTimeMillis()),"TempPhotoCleanup").start();prefs=getSharedPreferences("settings",MODE_PRIVATE);restore=state;
+  super.onCreate(state);new Thread(()->{long now=System.currentTimeMillis();TempPhotos.clean(getCacheDir(),now);ImageDownloads.clean(getCacheDir(),now);},"TempFileCleanup").start();prefs=getSharedPreferences("settings",MODE_PRIVATE);restore=state;
   recordInstalledVersion();
   if(state!=null){String c=state.getString("capture");if(c!=null)captureUri=Uri.parse(c);}
   getWindow().setStatusBarColor(Color.TRANSPARENT);getWindow().setNavigationBarColor(Color.TRANSPARENT);
@@ -424,6 +425,12 @@ public class MainActivity extends Activity {
   FrameLayout.LayoutParams shieldLayout=new FrameLayout.LayoutParams(pad(44),pad(44),Gravity.TOP|Gravity.END);shieldLayout.topMargin=pad(58);shieldLayout.rightMargin=pad(8);stage.addView(shield,shieldLayout);updateShield();shield.setOnClickListener(v->settings());
   WebSettings s=web.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setAllowFileAccess(false);s.setAllowContentAccess(true);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);s.setSupportMultipleWindows(true);s.setJavaScriptCanOpenWindowsAutomatically(false);s.setMediaPlaybackRequiresUserGesture(true);s.setSafeBrowsingEnabled(true);
   CookieManager.getInstance().setAcceptCookie(true);CookieManager.getInstance().setAcceptThirdPartyCookies(web,true);
+  WebView downloadPage=web;
+  web.setDownloadListener((url,agent,disposition,mime,length)->{
+   if(web!=downloadPage || !ImageDownloadPolicy.allowedPage(downloadPage.getUrl()))return;
+   if(imageDownloads==null)imageDownloads=new ImageDownloads(this);
+   imageDownloads.start(downloadPage,url,agent,mime,length);
+  });
   web.setWebViewClient(client());web.setWebChromeClient(new WebChromeClient(){
    @Override public boolean onConsoleMessage(ConsoleMessage m){
     if(m.message().matches("GP_MEDIA (granted|ended|error [A-Za-z]+)")){android.util.Log.i("GeminiMedia",m.message());return true;}if(m.message().matches("GP_ACTION (photos|files|camera)")){attachmentAction=m.message().substring(10);attachmentActionAt=SystemClock.elapsedRealtime();return true;}
@@ -467,7 +474,16 @@ public class MainActivity extends Activity {
   if(readinessScript==null){try(InputStream in=getAssets().open("launch-readiness.js");ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buffer=new byte[4096];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);readinessScript=new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);}catch(IOException e){launchError("Could not check the page controls. Retry.");return;}}
   view.evaluateJavascript(readinessScript,value->{if(view!=web || pageVisible || token!=launchAttempt)return;try{org.json.JSONObject state=new org.json.JSONObject(value);if(state.getBoolean("ready")){revealPage();return;}loadingStage.setText(!state.getBoolean("composer")?"Waiting for the chat interface":!state.getBoolean("nav")?"Preparing navigation":"Preparing model controls");if(attempt==0 || attempt==40)android.util.Log.i("GeminiReadiness",state.toString());}catch(Exception ignored){}if(attempt<120)view.postDelayed(()->awaitGeminiReady(view,url,attempt+1,token),250);else{retryLaunch.setVisibility(View.VISIBLE);openIncomplete.setVisibility(View.VISIBLE);}});
  }
- private String integrationScript;
+ private String integrationScript, imageCaptureScript;
+ private void installImageCapture(WebView view){
+  if(imageCaptureScript==null){
+   try(InputStream in=getAssets().open("image-download-capture.js");ByteArrayOutputStream out=new ByteArrayOutputStream()){
+    Transfer.copy(in,out,8192,()->false,null);
+    imageCaptureScript=out.toString("UTF-8");
+   }catch(IOException e){return;}
+  }
+  view.evaluateJavascript(imageCaptureScript,null);
+ }
  private String websiteScript(){
   if(integrationScript!=null)return integrationScript;
   try(InputStream in=getAssets().open("gemini-integration.js");ByteArrayOutputStream out=new ByteArrayOutputStream()){
@@ -483,7 +499,7 @@ public class MainActivity extends Activity {
   view.evaluateJavascript(promotionScript,null);
  }
  private WebViewClient client(){return new WebViewClient(){
-  @Override public void onPageStarted(WebView v,String u,android.graphics.Bitmap icon){suppressPromotion(v,u);}
+  @Override public void onPageStarted(WebView v,String u,android.graphics.Bitmap icon){if(imageDownloads!=null)imageDownloads.pageChanged(v);suppressPromotion(v,u);}
   @Override public void onPageCommitVisible(WebView v,String u){suppressPromotion(v,u);awaitGeminiReady(v,u,0,launchAttempt);}
 
   @Override public boolean shouldOverrideUrlLoading(WebView v,WebResourceRequest r){
@@ -498,10 +514,10 @@ public class MainActivity extends Activity {
    boolean ok=r.isForMainFrame()?UrlPolicy.navigation(u,restricted()):UrlPolicy.resource(u,restricted());
    if(ok)return null;android.util.Log.w("GeminiUpload","blocked resource scheme="+r.getUrl().getScheme()+" host="+r.getUrl().getHost());return new WebResourceResponse("text/plain","UTF-8",403,"Blocked by URL policy",Collections.emptyMap(),new ByteArrayInputStream(new byte[0]));
   }
-  @Override public void onPageFinished(WebView v,String u){suppressPromotion(v,u);if(UrlPolicy.mediaOrigin(u))v.evaluateJavascript(websiteScript(),null);CookieManager.getInstance().flush();status.setText("Gemini · "+(restricted()?"restricted":"open HTTPS"));}
+  @Override public void onPageFinished(WebView v,String u){suppressPromotion(v,u);if(UrlPolicy.mediaOrigin(u)){installImageCapture(v);v.evaluateJavascript(websiteScript(),null);}CookieManager.getInstance().flush();status.setText("Gemini · "+(restricted()?"restricted":"open HTTPS"));}
   @Override public void onReceivedSslError(WebView v,SslErrorHandler h,android.net.http.SslError e){h.cancel();launchError("Secure connection failed. Certificate errors cannot be bypassed.");}
   @Override public void onReceivedError(WebView v,WebResourceRequest r,WebResourceError e){if(r.isForMainFrame())launchError("Connection failed. Check your network, then Retry or use browser mode.");}
-  @Override public boolean onRenderProcessGone(WebView v,RenderProcessGoneDetail d){cancelUpload();v.destroy();web=null;new AlertDialog.Builder(MainActivity.this).setTitle("Page stopped").setMessage("Android stopped the web renderer. Reopen Gemini to continue; an unfinished upload may need to be selected again.").setPositiveButton("Reopen",(a,b)->isolated()).setNegativeButton("Setup",(a,b)->setup()).show();return true;}
+  @Override public boolean onRenderProcessGone(WebView v,RenderProcessGoneDetail d){cancelUpload();if(imageDownloads!=null)imageDownloads.pageChanged(v);v.destroy();web=null;new AlertDialog.Builder(MainActivity.this).setTitle("Page stopped").setMessage("Android stopped the web renderer. Reopen Gemini to continue; an unfinished upload may need to be selected again.").setPositiveButton("Reopen",(a,b)->isolated()).setNegativeButton("Setup",(a,b)->setup()).show();return true;}
  };}
  private void navigate(String u){if(UrlPolicy.navigation(u,restricted()))web.loadUrl(u);else external(u);}
  private void external(String u){
@@ -557,7 +573,13 @@ public class MainActivity extends Activity {
  }
  @Override public void onRequestPermissionsResult(int code,String[] p,int[] results){super.onRequestPermissionsResult(code,p,results);if(code==CAMERA_PERMISSION){if(checkSelfPermission(Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED)capture();else cancelUpload();}if(code==WEB_PERMISSION)grantWeb();}
  @Override protected void onActivityResult(int code,int result,Intent data){
-  super.onActivityResult(code,result,data);if(code!=PICK && code!=CAPTURE)return;
+  super.onActivityResult(code,result,data);
+  if(code==ImageDownloads.SAVE_IMAGE){
+   if(imageDownloads!=null)imageDownloads.result(result,data);
+   else if(result==RESULT_OK)toast("Image download expired. Please try again.");
+   return;
+  }
+  if(code!=PICK && code!=CAPTURE)return;
   if(code==CAPTURE && result==RESULT_OK && data!=null)captureUri=data.getData();
   ArrayList<Uri> selected=new ArrayList<>();
   if(code==CAPTURE && captureUri!=null){File output=new File(getCacheDir(),captureUri.getLastPathSegment());android.util.Log.i("GeminiUpload","camera returned ok="+(result==RESULT_OK)+" outputBytes="+output.length());}
@@ -591,7 +613,7 @@ public class MainActivity extends Activity {
  @Override protected void onNewIntent(Intent intent){super.onNewIntent(intent);setIntent(intent);}
  @Override protected void onStop(){super.onStop();CookieManager.getInstance().flush();}
  @Override public void onBackPressed(){if(returnFromModeSelection())return;if(web!=null && web.canGoBack())web.goBack();else super.onBackPressed();}
- private void destroyWeb(){cancelUpload();if(pendingPermission!=null){pendingPermission.deny();pendingPermission=null;}for(WebView v:new ArrayList<>(popups))closePopup(v);if(web!=null){web.stopLoading();web.destroy();web=null;}}
+ private void destroyWeb(){if(imageDownloads!=null){imageDownloads.destroy();imageDownloads=null;}cancelUpload();if(pendingPermission!=null){pendingPermission.deny();pendingPermission=null;}for(WebView v:new ArrayList<>(popups))closePopup(v);if(web!=null){web.stopLoading();web.destroy();web=null;}}
  @Override protected void onDestroy(){cancelUpdate=true;if(updateConnection!=null)updateConnection.disconnect();destroyWeb();super.onDestroy();}
  private void toast(String s){Toast.makeText(this,s,Toast.LENGTH_LONG).show();}
 }

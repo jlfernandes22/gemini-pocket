@@ -46,10 +46,12 @@ public final class UrlPolicy {
  public static boolean frameNavigation(String url,boolean restricted) {
   return navigation(url,restricted) || documentPreview(url);
  }
+ // Gemini fetches the original image here before issuing a browser download.
+ static boolean originalImageHost(String host) { return "lh3.google.com".equals(host); }
  public static boolean resource(String url,boolean restricted) {
   if(documentPreview(url))return true;
   String h=host(url);
-  return h!=null && (!restricted || navHost(h) || signInHandoff(url,h) || domain(h,"gstatic.com") || domain(h,"googleusercontent.com") || domain(h,"googleapis.com") || h.equals("www.google.com") || h.equals("speechs3proto2-pa.clients6.google.com") || h.equals("geminiweb-pa.clients6.google.com") || h.equals("waa-pa.clients6.google.com") || h.equals("signaler-pa.clients6.google.com") || h.equals("push.clients6.google.com") || h.equals("upload.clients6.google.com") || h.equals("apis.google.com") || h.equals("ssl.google-analytics.com"));
+  return h!=null && (!restricted || navHost(h) || signInHandoff(url,h) || domain(h,"gstatic.com") || domain(h,"googleusercontent.com") || originalImageHost(h) || domain(h,"googleapis.com") || h.equals("www.google.com") || h.equals("speechs3proto2-pa.clients6.google.com") || h.equals("geminiweb-pa.clients6.google.com") || h.equals("waa-pa.clients6.google.com") || h.equals("signaler-pa.clients6.google.com") || h.equals("push.clients6.google.com") || h.equals("upload.clients6.google.com") || h.equals("apis.google.com") || h.equals("ssl.google-analytics.com"));
  }
  public static boolean mediaOrigin(String url) { return "gemini.google.com".equals(host(url)); }
 }

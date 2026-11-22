@@ -11,6 +11,13 @@ public class UrlPolicyTest {
   check(UrlPolicy.navigation("http://example.com/",false),false,"unrestricted still https");
   check(UrlPolicy.resource("https://www.gstatic.com/a.js",true),true,"static");
   check(UrlPolicy.resource("https://lh3.googleusercontent.com/a",true),true,"media");
+  String originalImage="https://lh3.google.com/gg-dl/sample";
+  check(UrlPolicy.resource(originalImage,true),true,"Gemini original-image resource host");
+  check(UrlPolicy.navigation(originalImage,true),false,"Image host is not a page destination");
+  check(UrlPolicy.frameNavigation(originalImage,true),false,"Image host is not a frame destination");
+  check(UrlPolicy.resource("https://lh3.google.com.evil.org/gg-dl/sample",true),false,"Image host exact match");
+  check(UrlPolicy.resource("https://lh4.google.com/gg-dl/sample",true),false,"Other google.com hosts stay blocked");
+  check(UrlPolicy.resource("http://lh3.google.com/gg-dl/sample",true),false,"Image host HTTPS only");
   check(UrlPolicy.resource("https://evilgoogleusercontent.com/a",true),false,"suffix");
   check(UrlPolicy.resource("https://evil.org/",true),false,"resource blocked");
   check(UrlPolicy.resource("https://content-push.googleapis.com/",true),true,"google API");
