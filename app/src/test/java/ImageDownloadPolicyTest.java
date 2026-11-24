@@ -29,6 +29,26 @@ public final class ImageDownloadPolicyTest {
   check("image/gif".equals(ImageDownloadPolicy.mime("GIF89a".getBytes(StandardCharsets.US_ASCII))), "GIF signature");
   check(ImageDownloadPolicy.mime("<html>login required".getBytes(StandardCharsets.US_ASCII))==null, "Never export a sign-in page as an image");
   check(ImageDownloadPolicy.mime(bytes(137,80,78,71))==null, "Reject truncated signature");
-  System.out.println("PASS: Gemini image download origins, blob URLs and raster image signatures");
+  check(ImageDownloadPolicy.plainText("Text/Plain; charset=UTF-8", "notes.txt"), "Plain-text MIME with charset");
+  check("text/markdown".equals(ImageDownloadPolicy.textMime("text/plain", "README.md")), "Keep Markdown served as plain text");
+  check("text/markdown".equals(ImageDownloadPolicy.textMime("application/octet-stream", "README.markdown")), "Keep Markdown extension with generic MIME");
+  check("text/markdown".equals(ImageDownloadPolicy.textMime("text/markdown; charset=UTF-8", null)), "Markdown MIME without filename");
+  check("README.markdown".equals(ImageDownloadPolicy.textName("README.markdown", "text/markdown")), "Preserve .markdown");
+  check("Gemini-document.md".equals(ImageDownloadPolicy.textName("readme.html", "text/markdown")), "Use safe fallback extension");
+  check("# Notes\n".equals(ImageDownloadPolicy.textData("data:text/markdown,%23%20Notes%0A")), "Decode Markdown data URL");
+  check(!ImageDownloadPolicy.plainText("text/javascript", "code.md"), "Reject active MIME");
+  check(!ImageDownloadPolicy.plainText("application/octet-stream", "../README.md"), "Unsafe name cannot opt generic MIME into text");
+  check(ImageDownloadPolicy.plainText("application/octet-stream", "notes.TXT"), "Explicit filename for generic MIME");
+  check(!ImageDownloadPolicy.plainText("text/html", "notes.txt"), "HTML is not a text download");
+  check(!ImageDownloadPolicy.plainText("application/octet-stream", "notes.txt.apk"), "Do not trust a double extension ending in APK");
+  check("notes.txt".equals(ImageDownloadPolicy.textName("notes.TXT", "text/plain")), "Keep the downloaded name");
+  check("Gemini-document.txt".equals(ImageDownloadPolicy.textName("../notes.txt", "text/plain")), "Do not use path components");
+  check("Gemini-document.txt".equals(ImageDownloadPolicy.textName("note\u202egpj.txt", "text/plain")), "Do not use spoofed filenames");
+  check(ImageDownloadPolicy.textData("data:text/plain;charset=utf-8,hello%20caf%C3%A9+%0A").equals("hello café+\n"), "Decode data URL without changing literal plus");
+  check(ImageDownloadPolicy.textData("data:text/plain;base64,aGkK").equals("hi\n"), "Decode base64 text URL");
+  check(ImageDownloadPolicy.textData("data:text/html,hello")==null, "Reject HTML data URLs");
+  check(ImageDownloadPolicy.textData("data:text/plain;base64,/w==")==null, "Reject invalid UTF-8");
+  check(ImageDownloadPolicy.textData("data:text/plain,text%00file")==null, "Reject binary controls");
+  System.out.println("PASS: Gemini image and text download policy");
  }
 }

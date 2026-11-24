@@ -429,7 +429,7 @@ public class MainActivity extends Activity {
   web.setDownloadListener((url,agent,disposition,mime,length)->{
    if(web!=downloadPage || !ImageDownloadPolicy.allowedPage(downloadPage.getUrl()))return;
    if(imageDownloads==null)imageDownloads=new ImageDownloads(this);
-   imageDownloads.start(downloadPage,url,agent,mime,length);
+   imageDownloads.start(downloadPage,url,agent,disposition,mime,length);
   });
   web.setWebViewClient(client());web.setWebChromeClient(new WebChromeClient(){
    @Override public boolean onConsoleMessage(ConsoleMessage m){
@@ -574,9 +574,9 @@ public class MainActivity extends Activity {
  @Override public void onRequestPermissionsResult(int code,String[] p,int[] results){super.onRequestPermissionsResult(code,p,results);if(code==CAMERA_PERMISSION){if(checkSelfPermission(Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED)capture();else cancelUpload();}if(code==WEB_PERMISSION)grantWeb();}
  @Override protected void onActivityResult(int code,int result,Intent data){
   super.onActivityResult(code,result,data);
-  if(code==ImageDownloads.SAVE_IMAGE){
+  if(code==ImageDownloads.SAVE_FILE){
    if(imageDownloads!=null)imageDownloads.result(result,data);
-   else if(result==RESULT_OK)toast("Image download expired. Please try again.");
+   else if(result==RESULT_OK)toast("Download expired. Please try again.");
    return;
   }
   if(code!=PICK && code!=CAPTURE)return;

@@ -1,0 +1,2 @@
+Download plain text and Markdown
+Save generated .txt, .md, and .markdown files in Isolated mode with Android’s save picker. The Download button next to Copy now works for Plaintext blocks, too.

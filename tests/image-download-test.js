@@ -5,13 +5,22 @@ const script = fs.readFileSync('app/src/main/assets/image-download.js', 'utf8');
 const origin = 'https://gemini.google.com';
 const url = 'blob:' + origin + '/d1a4c320-70fa-4720-82b6-ad2523dd02dd';
 
-function receive({address = url, sender = '', size = 5, eventKey = 'one-time-key', captured = true} = {}) {
+function receive({address = url, sender = '', size = 5, eventKey = 'one-time-key', captured = true, retained, plaintext, type = 'image/jpeg'} = {}) {
   const payload = Buffer.alloc(Math.min(size, 65536), 71);
   const messages = [];
   let port, listener, fetches = 0;
   const window = {
+    __gpTakePlaintextBlock(length) {
+      assert.equal(type, 'text/plain');
+      assert.equal(length, size);
+      return plaintext;
+    },
+    __gpTakeDownloadBlob(address, length) {
+      assert.equal(address, url);
+      assert.equal(length, size);
+      return retained;
+    },
     async __gpTakeDownloadImage(type, length) {
-      assert.equal(type, 'image/jpeg');
       assert.equal(length, size);
       return captured ? new Blob([payload], {type}) : null;
     },
@@ -28,7 +37,7 @@ function receive({address = url, sender = '', size = 5, eventKey = 'one-time-key
     close() {},
     start() {}
   };
-  vm.runInNewContext(script.replace('/* REQUEST */ null', JSON.stringify({url: address, key: 'one-time-key', limit: 65536, type: 'image/jpeg', size})), {
+  vm.runInNewContext(script.replace('/* REQUEST */ null', JSON.stringify({url: address, key: 'one-time-key', limit: 65536, type, size})), {
     window, location: {origin}, URL, AbortSignal, AbortController, setTimeout: () => 1, clearTimeout() {},
     fetch: async (_, options) => {
       fetches++;
@@ -72,6 +81,17 @@ const watchdog = setTimeout(() => {
   await valid.settled;
   assert.equal(valid.messages.pop(), 'done');
   assert.deepEqual(Buffer.concat(valid.messages.map(value => Buffer.from(value, 'base64'))), Buffer.alloc(50000, 71));
+  const documentBlob = new Blob(['# Notes\n'], {type: 'application/octet-stream'});
+  const document = receive({size: documentBlob.size, type: documentBlob.type, retained: {blob: documentBlob, name: 'notes.md'}});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(document.fetches(), 0, 'Do not refetch a retained URL');
+  assert.equal(document.messages[0], 'text-name:notes.md');
+  document.next();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(Buffer.from(document.messages[1], 'base64').toString(), '# Notes\n');
+  document.next();
+  await document.settled;
+  assert.equal(document.messages[2], 'done');
   const opaque = receive({address: 'blob:null/d1a4c320-70fa-4720-82b6-ad2523dd02dd'});
   await new Promise(resolve => setImmediate(resolve));
   assert.equal(opaque.fetches(), 0, 'do not fetch an opaque blob from the top page');
@@ -82,6 +102,15 @@ const watchdog = setTimeout(() => {
   const unmatched = receive({address: 'blob:null/d1a4c320-70fa-4720-82b6-ad2523dd02dd', captured:false});
   await unmatched.settled;
   assert.deepEqual(unmatched.messages, ['error']);
+  const block = new Blob(['olá\n  indented\n'], {type: 'text/plain'});
+  const text = receive({address: 'blob:null/d1a4c320-70fa-4720-82b6-ad2523dd02dd', captured: false,
+    type: 'text/plain', size: block.size, plaintext: block});
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(text.fetches(), 0);
+  assert.equal(Buffer.from(text.messages[0], 'base64').toString(), await block.text());
+  text.next();
+  await text.settled;
+  assert.equal(text.messages[1], 'done');
   const oversized = receive({size: 80000});
   await new Promise(resolve => setImmediate(resolve));
   oversized.next();

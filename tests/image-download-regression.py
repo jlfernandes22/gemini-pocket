@@ -5,7 +5,9 @@ activity = (sources / 'MainActivity.java').read_text()
 transport = (sources / 'ImageDownloads.java').read_text()
 manifest = Path('app/src/main/AndroidManifest.xml').read_text()
 assert 'web.setDownloadListener(' in activity and 'web!=downloadPage' in activity
-assert 'ImageDownloads.SAVE_IMAGE' in activity and 'imageDownloads.result(result,data)' in activity
+assert 'ImageDownloads.SAVE_FILE' in activity and 'imageDownloads.result(result,data)' in activity
+assert 'imageDownloads.start(downloadPage,url,agent,disposition,mime,length)' in activity
+assert 'ImageDownloadPolicy.validText(in)' in transport and 'Intent.EXTRA_TITLE, name' in transport
 assert 'conn.setInstanceFollowRedirects(false)' in transport
 assert transport.index('!ImageDownloadPolicy.https(url)') < transport.index('getCookie(url)')
 assert 'postWebMessage' in transport and 'Uri.parse(ImageDownloadPolicy.ORIGIN)' in transport

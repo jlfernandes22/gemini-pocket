@@ -17,18 +17,35 @@
     const port = event.ports[0];
     const abort = new AbortController();
     const deadline = setTimeout(() => abort.abort(), 45000);
+    const send = data => new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => reject(new Error('File transfer timed out')), 5000);
+      port.onmessage = reply => {
+        clearTimeout(timeout);
+        port.onmessage = null;
+        if (reply.data === 'next') resolve();
+        else reject(new Error('File transfer cancelled'));
+      };
+      port.postMessage(data);
+    });
     try {
       let stream;
       if (opaque) {
-        const image = await window.__gpTakeDownloadImage?.(request.type, request.size);
-        if (!image || image.size !== request.size || image.type !== request.type) throw new Error('Unmatched image');
-        stream = image.stream();
+        const file = (request.type === 'text/plain' ? window.__gpTakePlaintextBlock?.(request.size) : null)
+          || await window.__gpTakeDownloadImage?.(request.type, request.size, request.name);
+        if (!file || file.size !== request.size || file.type !== request.type) throw new Error('Unmatched download');
+        stream = file.stream();
       } else {
-        const response = await fetch(url.href, {
-          mode: 'same-origin', credentials: 'same-origin', redirect: 'error', signal: abort.signal
-        });
-        if (!response.ok || !response.body) throw new Error('Unreadable image');
-        stream = response.body;
+        const retained = window.__gpTakeDownloadBlob?.(url.href, request.size);
+        if (retained) {
+          await send('text-name:' + retained.name);
+          stream = retained.blob.stream();
+        } else {
+          const response = await fetch(url.href, {
+            mode: 'same-origin', credentials: 'same-origin', redirect: 'error', signal: abort.signal
+          });
+          if (!response.ok || !response.body) throw new Error('Unreadable download');
+          stream = response.body;
+        }
       }
       const reader = stream.getReader();
       let total = 0;
@@ -36,21 +53,12 @@
         const {value, done} = await reader.read();
         if (done) break;
         total += value.length;
-        if (total > request.limit) throw new Error('Image too large');
+        if (total > request.limit) throw new Error('File too large');
         for (let offset = 0; offset < value.length; offset += 32768) {
           const chunk = value.subarray(offset, offset + 32768);
           let text = '';
           for (const byte of chunk) text += String.fromCharCode(byte);
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => reject(new Error('Image transfer timed out')), 5000);
-            port.onmessage = reply => {
-              clearTimeout(timeout);
-              port.onmessage = null;
-              if (reply.data === 'next') resolve();
-              else reject(new Error('Image transfer cancelled'));
-            };
-            port.postMessage(btoa(text));
-          });
+          await send(btoa(text));
         }
       }
       port.postMessage('done');
