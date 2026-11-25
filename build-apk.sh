@@ -47,8 +47,23 @@ aapt2 link -I "$ANDROID_JAR" --manifest build-manifest.tmp.xml $ASSET_ARGS \
     --version-code "$VERSION_CODE" --version-name "$VERSION_NAME" \
     -o build/base.apk $LINK_INPUTS
 
-CLASSPATH_JARS="$ANDROID_JAR"
-LIB_JARS=""
+# The manual build needs the same WebKit classes as Gradle's AndroidX dependency.
+# ponytail: these AARs need no resources for the document-start API; use Gradle if that changes.
+fetch_classes() (
+    dep=$1 path=$2 sha=$3
+    mkdir -p "build/$dep"
+    cd "build/$dep"
+    curl --fail --silent --show-error --location --proto '=https' --proto-redir '=https' --max-time 60 \
+        "https://dl.google.com/dl/android/maven2/$path" -o dependency.aar
+    printf '%s  dependency.aar\n' "$sha" | sha256sum -c -
+    jar xf dependency.aar classes.jar
+)
+need curl
+need sha256sum
+fetch_classes webkit androidx/webkit/webkit/1.12.1/webkit-1.12.1.aar 18a0a51ad129e0c8563f031d46c8a7e61169f56ae84e562a0d75686941262111
+fetch_classes android-core androidx/core/core/1.1.0/core-1.1.0.aar 76c7cfbe596fe3c09a6983bf1c89e889299c08ac9a3b52ce5182a088d056647e
+LIB_JARS="build/webkit/classes.jar build/android-core/classes.jar"
+CLASSPATH_JARS="$ANDROID_JAR:build/webkit/classes.jar:build/android-core/classes.jar"
 if [ -d libs ]; then
     for lib in libs/*.jar; do
         [ -f "$lib" ] || continue

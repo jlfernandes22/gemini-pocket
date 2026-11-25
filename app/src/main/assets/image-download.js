@@ -17,6 +17,7 @@
     const port = event.ports[0];
     const abort = new AbortController();
     const deadline = setTimeout(() => abort.abort(), 45000);
+    let forwarded = false;
     const send = data => new Promise((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('File transfer timed out')), 5000);
       port.onmessage = reply => {
@@ -30,6 +31,11 @@
     try {
       let stream;
       if (opaque) {
+        if (request.type === 'application/pdf') {
+          forwarded = window.__gpForwardPdf?.(url.href, request.size, port) === true;
+          if (forwarded) return;
+          throw new Error('PDF is not available in its originating frame');
+        }
         const file = (request.type === 'text/plain' ? window.__gpTakePlaintextBlock?.(request.size) : null)
           || await window.__gpTakeDownloadImage?.(request.type, request.size, request.name);
         if (!file || file.size !== request.size || file.type !== request.type) throw new Error('Unmatched download');
@@ -67,7 +73,7 @@
     } finally {
       clearTimeout(deadline);
       abort.abort();
-      port.close();
+      if (!forwarded) port.close();
     }
   };
   const expiry = setTimeout(() => window.removeEventListener('message', receive), 5000);

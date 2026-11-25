@@ -1,0 +1,2 @@
+Fix saving Canvas documents as PDFs
+In Isolated mode, exporting a Gemini Canvas document as a PDF could show a progress message and then fail without saving anything. Now choose Export → PDF in Canvas, pick a folder in Android’s save dialog, and tap Save.
