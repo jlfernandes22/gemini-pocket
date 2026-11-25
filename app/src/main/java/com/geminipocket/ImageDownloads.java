@@ -71,7 +71,7 @@ final class ImageDownloads {
   String name = URLUtil.guessFileName(blob || inlineMime != null ? "" : url, disposition, null);
   String type = ImageDownloadPolicy.baseMime(mime);
   if (blob && url.startsWith("blob:null/") && (length <= 0 ||
-      (!type.matches("image/(jpeg|png|webp|gif)") && !ImageDownloadPolicy.plainText(type, name)))) {
+      (!ImageDownloadPolicy.PDF.equals(type) && !type.matches("image/(jpeg|png|webp|gif)") && !ImageDownloadPolicy.plainText(type, name)))) {
    message(FAILED); return;
   }
   Job current = new Job(page, new File(activity.getCacheDir(), FILE_PREFIX + UUID.randomUUID() + ".tmp"));
@@ -102,7 +102,7 @@ final class ImageDownloads {
     conn.setInstanceFollowRedirects(false);
     conn.setConnectTimeout(12000);
     conn.setReadTimeout(15000);
-    conn.setRequestProperty("Accept", "image/*,text/plain,text/markdown,application/octet-stream;q=0.5");
+    conn.setRequestProperty("Accept", "image/*,application/pdf,text/plain,text/markdown,application/octet-stream;q=0.5");
     conn.setRequestProperty("Referer", ImageDownloadPolicy.ORIGIN + "/");
     if (agent != null && !agent.isEmpty()) conn.setRequestProperty("User-Agent", agent);
     // Look up cookies for this validated request only; never forward cookies from a previous hop.
@@ -119,7 +119,7 @@ final class ImageDownloads {
     String type = ImageDownloadPolicy.baseMime(conn.getContentType());
     String disposition = conn.getHeaderField("Content-Disposition");
     if (disposition != null) current.name = URLUtil.guessFileName(url, disposition, null);
-    if (!ImageDownloadPolicy.plainText(type, current.name) && !type.matches("image/.*|application/octet-stream|"))
+    if (!ImageDownloadPolicy.plainText(type, current.name) && !ImageDownloadPolicy.PDF.equals(type) && !type.matches("image/.*|application/octet-stream|"))
      throw new IOException("Unsupported download response");
     if (!current.operation.active()) throw new IOException("Cancelled");
     try (InputStream in = conn.getInputStream(); OutputStream out = new FileOutputStream(current.file)) {
@@ -159,7 +159,7 @@ final class ImageDownloads {
        return;
       }
       if ("done".equals(data) && total > 0) {
-       if ((opaque || ImageDownloadPolicy.plainText(mime, current.name)) && length > 0 && total != length) throw new IOException("Download length changed");
+       if ((opaque || ImageDownloadPolicy.PDF.equals(mime) || ImageDownloadPolicy.plainText(mime, current.name)) && length > 0 && total != length) throw new IOException("Download length changed");
        ended = true; ready(current, mime, opaque && !ImageDownloadPolicy.plainText(mime, current.name)); return;
       }
       if (data == null || data.length() > ((CHUNK_BYTES + 2) / 3) * 4 || "error".equals(data)) throw new IOException("Invalid download chunk");
@@ -199,6 +199,11 @@ final class ImageDownloads {
     byte[] header = new byte[12];
     int offset = 0, n;
     while (offset < header.length && (n = in.read(header, offset, header.length - offset)) != -1) offset += n;
+    if (ImageDownloadPolicy.PDF.equals(reportedMime)) {
+     if (!ImageDownloadPolicy.pdf(java.util.Arrays.copyOf(header, offset))) throw new IOException("Invalid PDF signature");
+     ui.post(() -> chooseDestination(current, ImageDownloadPolicy.PDF, ImageDownloadPolicy.pdfName(current.name), false));
+     return;
+    }
     String mime = ImageDownloadPolicy.mime(java.util.Arrays.copyOf(header, offset));
     if (mime == null || (requireImageMatch && !reportedMime.equals(mime))) throw new IOException("Invalid raster image signature");
     String name = "Gemini-image-" + System.currentTimeMillis() + "." + ImageDownloadPolicy.extension(mime);

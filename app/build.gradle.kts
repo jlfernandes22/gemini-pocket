@@ -1,6 +1,8 @@
 import java.util.Properties
 
 plugins { id("com.android.application") }
+
+dependencies { implementation("androidx.webkit:webkit:1.12.1") }
 val appVersion = Properties().apply { rootProject.file("version.properties").inputStream().use { load(it) } }
 android {
     namespace = "com.geminipocket"

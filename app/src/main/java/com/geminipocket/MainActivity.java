@@ -425,6 +425,7 @@ public class MainActivity extends Activity {
   FrameLayout.LayoutParams shieldLayout=new FrameLayout.LayoutParams(pad(44),pad(44),Gravity.TOP|Gravity.END);shieldLayout.topMargin=pad(58);shieldLayout.rightMargin=pad(8);stage.addView(shield,shieldLayout);updateShield();shield.setOnClickListener(v->settings());
   WebSettings s=web.getSettings();s.setJavaScriptEnabled(true);s.setDomStorageEnabled(true);s.setAllowFileAccess(false);s.setAllowContentAccess(true);s.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);s.setSupportMultipleWindows(true);s.setJavaScriptCanOpenWindowsAutomatically(false);s.setMediaPlaybackRequiresUserGesture(true);s.setSafeBrowsingEnabled(true);
   CookieManager.getInstance().setAcceptCookie(true);CookieManager.getInstance().setAcceptThirdPartyCookies(web,true);
+  installPdfCapture(web);
   WebView downloadPage=web;
   web.setDownloadListener((url,agent,disposition,mime,length)->{
    if(web!=downloadPage || !ImageDownloadPolicy.allowedPage(downloadPage.getUrl()))return;
@@ -473,6 +474,14 @@ public class MainActivity extends Activity {
   if(!UrlPolicy.mediaOrigin(url)){revealPage();return;}
   if(readinessScript==null){try(InputStream in=getAssets().open("launch-readiness.js");ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] buffer=new byte[4096];int n;while((n=in.read(buffer))!=-1)out.write(buffer,0,n);readinessScript=new String(out.toByteArray(),java.nio.charset.StandardCharsets.UTF_8);}catch(IOException e){launchError("Could not check the page controls. Retry.");return;}}
   view.evaluateJavascript(readinessScript,value->{if(view!=web || pageVisible || token!=launchAttempt)return;try{org.json.JSONObject state=new org.json.JSONObject(value);if(state.getBoolean("ready")){revealPage();return;}loadingStage.setText(!state.getBoolean("composer")?"Waiting for the chat interface":!state.getBoolean("nav")?"Preparing navigation":"Preparing model controls");if(attempt==0 || attempt==40)android.util.Log.i("GeminiReadiness",state.toString());}catch(Exception ignored){}if(attempt<120)view.postDelayed(()->awaitGeminiReady(view,url,attempt+1,token),250);else{retryLaunch.setVisibility(View.VISIBLE);openIncomplete.setVisibility(View.VISIBLE);}});
+ }
+ private void installPdfCapture(WebView view){
+  if(!androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.DOCUMENT_START_SCRIPT))return;
+  try(InputStream in=getAssets().open("pdf-download.js");ByteArrayOutputStream out=new ByteArrayOutputStream()){
+   Transfer.copy(in,out,8192,()->false,null);
+   // Opaque Canvas frames cannot match a hostname rule. The script checks the top origin itself.
+   androidx.webkit.WebViewCompat.addDocumentStartJavaScript(view,out.toString("UTF-8"),Collections.singleton("*"));
+  }catch(IOException | UnsupportedOperationException e){android.util.Log.w("GeminiPocket","PDF capture unavailable",e);}
  }
  private String integrationScript, imageCaptureScript;
  private void installImageCapture(WebView view){

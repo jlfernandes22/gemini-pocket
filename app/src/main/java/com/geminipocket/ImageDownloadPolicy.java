@@ -52,6 +52,20 @@ public final class ImageDownloadPolicy {
   return null;
  }
 
+ static final String PDF = "application/pdf";
+
+ public static boolean pdf(byte[] header) {
+  return header.length >= 9 && starts(header, 0, '%', 'P', 'D', 'F', '-') &&
+    (header[5] == '1' || header[5] == '2') && header[6] == '.' &&
+    header[7] >= '0' && header[7] <= '9' && (header[8] == '\n' || header[8] == '\r');
+ }
+
+ public static String pdfName(String name) {
+  if (name != null && !name.startsWith(".") && !name.startsWith(" ") &&
+      name.matches("(?i)[\\p{L}\\p{M}\\p{N}_ .()\\-]{1,116}\\.pdf")) return name.substring(0, name.length() - 4) + ".pdf";
+  return "Gemini-document.pdf";
+ }
+
  static String baseMime(String mime) {
   return mime == null ? "" : mime.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);
  }

@@ -49,6 +49,11 @@ public final class ImageDownloadPolicyTest {
   check(ImageDownloadPolicy.textData("data:text/html,hello")==null, "Reject HTML data URLs");
   check(ImageDownloadPolicy.textData("data:text/plain;base64,/w==")==null, "Reject invalid UTF-8");
   check(ImageDownloadPolicy.textData("data:text/plain,text%00file")==null, "Reject binary controls");
-  System.out.println("PASS: Gemini image and text download policy");
+  check(ImageDownloadPolicy.pdf("%PDF-1.7\n".getBytes(StandardCharsets.US_ASCII)), "Accept PDF signature");
+  check(!ImageDownloadPolicy.pdf("%PDF-bad".getBytes(StandardCharsets.US_ASCII)), "Reject malformed PDF signature");
+  check(!ImageDownloadPolicy.pdf("<html>error".getBytes(StandardCharsets.US_ASCII)), "Reject mislabeled PDF");
+  check("Canvas export.pdf".equals(ImageDownloadPolicy.pdfName("Canvas export.PDF")), "Keep safe PDF name");
+  check("Gemini-document.pdf".equals(ImageDownloadPolicy.pdfName("../export.pdf")), "Reject path in PDF name");
+  System.out.println("PASS: Gemini image, text and PDF download policy");
  }
 }
